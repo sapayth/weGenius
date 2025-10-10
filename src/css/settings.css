@@ -1,0 +1,379 @@
+/**
+ * Settings Page Styles
+ * Modern, clean design with left sidebar navigation
+ *
+ * @package WeGenius
+ * @since 1.0.0
+ */
+
+/* Settings Wrapper */
+.wegen-settings-wrapper {
+	max-width: 1400px;
+	margin: 0 auto;
+	padding: 2rem;
+}
+
+/* Header Section */
+.wegen-settings-header {
+	margin-bottom: 2rem;
+}
+
+.wegen-settings-header-content {
+	margin-bottom: 1.5rem;
+}
+
+.wegen-settings-title {
+	font-size: 2rem;
+	font-weight: 700;
+	color: #1e293b;
+	margin: 0 0 0.5rem 0;
+	line-height: 1.2;
+}
+
+.wegen-settings-subtitle {
+	font-size: 1rem;
+	color: #64748b;
+	margin: 0;
+	line-height: 1.5;
+}
+
+/* Success/Error Messages */
+.wegen-settings-message {
+	padding: 1rem 1.25rem;
+	border-radius: 0.5rem;
+	animation: wegen-fade-in 0.3s ease-in-out;
+	margin-bottom: 1.5rem;
+	border: 1px solid;
+}
+
+.wegen-settings-message-success {
+	background-color: #f0fdf4;
+	border-color: #86efac;
+	color: #166534;
+}
+
+.wegen-settings-message-error {
+	background-color: #fef2f2;
+	border-color: #fecaca;
+	color: #991b1b;
+}
+
+@keyframes wegen-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-0.5rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Main Content Area */
+.wegen-settings-main {
+	display: grid;
+	grid-template-columns: 280px 1fr;
+	gap: 2rem;
+	align-items: start;
+}
+
+/* Left Sidebar Navigation */
+.wegen-settings-sidebar {
+	background: #ffffff;
+	border-radius: 0.75rem;
+	box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	padding: 0.5rem;
+	position: sticky;
+	top: 2rem;
+	border: 1px solid #e2e8f0;
+}
+
+.wegen-settings-nav {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.wegen-settings-nav li {
+	margin: 0;
+}
+
+.wegen-settings-nav-item {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 0.875rem 1rem;
+	border: none;
+	background: transparent;
+	color: #475569;
+	font-size: 0.9375rem;
+	font-weight: 500;
+	text-align: left;
+	border-radius: 0.5rem;
+	cursor: pointer;
+	transition: all 0.2s ease-in-out;
+	gap: 0.75rem;
+	margin-bottom: 0.25rem;
+}
+
+.wegen-settings-nav-item:hover {
+	background-color: #f8fafc;
+	color: #1e293b;
+	transform: translateX(2px);
+}
+
+.wegen-settings-nav-item:focus {
+	outline: 2px solid #3b82f6;
+	outline-offset: 2px;
+}
+
+.wegen-settings-nav-item-active {
+	background-color: #eff6ff;
+	color: #2563eb;
+	font-weight: 600;
+	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.wegen-settings-nav-item-active:hover {
+	background-color: #dbeafe;
+	transform: translateX(0);
+}
+
+.wegen-settings-nav-icon {
+	font-size: 1.25rem;
+	flex-shrink: 0;
+	width: 1.5rem;
+	height: 1.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.wegen-settings-nav-title {
+	flex: 1;
+	line-height: 1.4;
+}
+
+/* Right Content Area */
+.wegen-settings-content {
+	background: #ffffff;
+	border-radius: 0.75rem;
+	box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	padding: 2rem;
+	border: 1px solid #e2e8f0;
+	min-height: 500px;
+	animation: wegen-slide-in 0.3s ease-in-out;
+}
+
+@keyframes wegen-slide-in {
+	from {
+		opacity: 0;
+		transform: translateX(1rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+.wegen-settings-panel {
+	animation: wegen-fade-in 0.3s ease-in-out;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+	.wegen-settings-main {
+		grid-template-columns: 240px 1fr;
+		gap: 1.5rem;
+	}
+
+	.wegen-settings-sidebar {
+		padding: 0.375rem;
+	}
+
+	.wegen-settings-nav-item {
+		padding: 0.75rem 0.875rem;
+		font-size: 0.875rem;
+	}
+
+	.wegen-settings-content {
+		padding: 1.5rem;
+	}
+}
+
+@media (max-width: 768px) {
+	.wegen-settings-wrapper {
+		padding: 1rem;
+	}
+
+	.wegen-settings-main {
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.wegen-settings-sidebar {
+		position: static;
+		padding: 0.5rem;
+	}
+
+	.wegen-settings-nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.wegen-settings-nav li {
+		flex: 0 0 auto;
+	}
+
+	.wegen-settings-nav-item {
+		padding: 0.75rem 1rem;
+	}
+
+	.wegen-settings-nav-icon {
+		font-size: 1rem;
+	}
+
+	.wegen-settings-nav-title {
+		display: none;
+	}
+
+	.wegen-settings-content {
+		padding: 1.25rem;
+	}
+
+	.wegen-settings-title {
+		font-size: 1.5rem;
+	}
+
+	.wegen-settings-subtitle {
+		font-size: 0.9375rem;
+	}
+}
+
+/* Settings Form Styles */
+.wegenius-api-configuration,
+.wegenius-analysis-options,
+.wegenius-content-generation,
+.wegenius-performance-settings,
+.wegenius-permissions-settings {
+	max-width: 100%;
+}
+
+/* Card Styles */
+.wegenius-api-configuration .components-card,
+.wegenius-analysis-options .components-card,
+.wegenius-content-generation .components-card,
+.wegenius-performance-settings .components-card,
+.wegenius-permissions-settings .components-card {
+	margin-bottom: 1.5rem;
+	border: 1px solid #e2e8f0;
+	box-shadow: none;
+	transition: all 0.2s ease-in-out;
+}
+
+.wegenius-api-configuration .components-card:hover,
+.wegenius-analysis-options .components-card:hover,
+.wegenius-content-generation .components-card:hover,
+.wegenius-performance-settings .components-card:hover,
+.wegenius-permissions-settings .components-card:hover {
+	box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Card Header */
+.components-card-header h2,
+.components-card-header h3 {
+	color: #1e293b;
+	font-weight: 600;
+}
+
+.components-card-header p {
+	color: #64748b;
+}
+
+/* Save Button Styles */
+.wegenius-save-button {
+	transition: all 0.2s ease-in-out;
+}
+
+.wegenius-save-button:hover:not(:disabled) {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.wegenius-save-button:active:not(:disabled) {
+	transform: translateY(0);
+}
+
+/* Form Control Spacing */
+.components-base-control {
+	margin-bottom: 1.5rem;
+}
+
+.components-base-control:last-child {
+	margin-bottom: 0;
+}
+
+/* Input Focus States */
+.components-text-control__input:focus,
+.components-select-control__input:focus,
+.components-textarea-control__input:focus {
+	border-color: #3b82f6;
+	box-shadow: 0 0 0 1px #3b82f6;
+	outline: none;
+	transition: all 0.2s ease-in-out;
+}
+
+/* Toggle Control */
+.components-toggle-control {
+	transition: all 0.2s ease-in-out;
+}
+
+.components-toggle-control .components-form-toggle {
+	transition: all 0.2s ease-in-out;
+}
+
+/* Notice Component */
+.wegenius-test-result {
+	margin: 0;
+	animation: wegen-fade-in 0.3s ease-in-out;
+}
+
+/* Spinner */
+.wegenius-spinner {
+	margin-right: 0.5rem;
+}
+
+/* Settings Actions */
+.wegenius-settings-actions {
+	margin-top: 2rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid #e2e8f0;
+}
+
+/* Dark Mode Support (Optional) */
+@media (prefers-color-scheme: dark) {
+	.wegen-settings-sidebar,
+	.wegen-settings-content {
+		/* Add dark mode styles if needed */
+	}
+}
+
+/* Accessibility Improvements */
+.wegen-settings-nav-item:focus-visible {
+	outline: 2px solid #3b82f6;
+	outline-offset: 2px;
+}
+
+/* Loading State */
+.wegen-settings-content.is-loading {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* Animation for smooth transitions */
+* {
+	transition-property: background-color, border-color, color, transform, box-shadow;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+

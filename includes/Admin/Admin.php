@@ -82,6 +82,12 @@ class Admin {
 		if ( 'wegenius_page_wegenius-settings' === $hook ) {
 			$this->enqueue_settings_assets();
 		}
+
+		// Enqueue editor scripts for post editor
+		$screen = get_current_screen();
+		if ( $screen && 'post' === $screen->base ) {
+			$this->enqueue_editor_assets();
+		}
 	}
 
 	/**
@@ -206,6 +212,37 @@ class Admin {
 				WEGENIUS_PLUGIN_URL . 'assets/css/settings.css',
 				[],
 				WEGENIUS_VERSION
+			);
+		}
+	}
+
+	/**
+	 * Enqueue assets for editor.
+	 *
+	 * @return void
+	 */
+	public function enqueue_editor_assets(): void {
+		$script_path = WEGENIUS_PLUGIN_DIR . 'assets/js/editor.js';
+		$asset_path = WEGENIUS_PLUGIN_DIR . 'assets/js/editor.asset.php';
+
+		// Enqueue JavaScript if file exists.
+		if ( file_exists( $script_path ) ) {
+			// Load dependencies from asset file if it exists
+			$dependencies = [ 'wp-plugins' ];
+			$version = WEGENIUS_VERSION;
+			
+			if ( file_exists( $asset_path ) ) {
+				$asset_file = require $asset_path;
+				$dependencies = $asset_file['dependencies'];
+				$version = $asset_file['version'];
+			}
+			
+			wp_enqueue_script(
+				'wegenius-editor',
+				WEGENIUS_PLUGIN_URL . 'assets/js/editor.js',
+				$dependencies,
+				$version,
+				true
 			);
 		}
 	}

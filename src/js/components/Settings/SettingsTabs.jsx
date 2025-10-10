@@ -1,6 +1,5 @@
 import { useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { TabPanel } from '@wordpress/components';
 import { ApiConfiguration } from './ApiConfiguration';
 import { AnalysisOptions } from './AnalysisOptions';
 import { ContentGenerationSettings } from './ContentGenerationSettings';
@@ -14,6 +13,7 @@ import { PermissionsSettings } from './PermissionsSettings';
  * @since 1.0.0
  */
 export const SettingsTabs = () => {
+	const [activeTab, setActiveTab] = useState('api');
 	const [isSaving, setIsSaving] = useState(false);
 	const [saveMessage, setSaveMessage] = useState('');
 
@@ -24,27 +24,27 @@ export const SettingsTabs = () => {
 		{
 			name: 'api',
 			title: __('API Configuration', 'wegenius'),
-			className: 'wegenius-tab-api',
+			icon: '🔌',
 		},
 		{
 			name: 'analysis',
 			title: __('Analysis Options', 'wegenius'),
-			className: 'wegenius-tab-analysis',
+			icon: '🔍',
 		},
 		{
 			name: 'content-generation',
 			title: __('Content Generation', 'wegenius'),
-			className: 'wegenius-tab-content-generation',
+			icon: '✍️',
 		},
 		{
 			name: 'performance',
 			title: __('Performance', 'wegenius'),
-			className: 'wegenius-tab-performance',
+			icon: '⚡',
 		},
 		{
 			name: 'permissions',
 			title: __('Permissions', 'wegenius'),
-			className: 'wegenius-tab-permissions',
+			icon: '🔒',
 		},
 	];
 
@@ -101,38 +101,66 @@ export const SettingsTabs = () => {
 
 	return (
 		<div className="wegenius-container">
-			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-gray-900 mb-2">
-						{__('weGenius Settings', 'wegenius')}
-					</h1>
-					<p className="text-gray-600">
-						{__('Configure your weGenius plugin settings and preferences.', 'wegenius')}
-					</p>
-				</div>
-
-				{saveMessage && (
-					<div className={`mb-6 p-4 rounded-md ${
-						saveMessage.includes('successfully') 
-							? 'bg-green-50 border border-green-200 text-green-800' 
-							: 'bg-red-50 border border-red-200 text-red-800'
-					}`}>
-						<p className="m-0">{saveMessage}</p>
+			<div className="wegen-settings-wrapper">
+				{/* Header Section */}
+				<div className="wegen-settings-header">
+					<div className="wegen-settings-header-content">
+						<h1 className="wegen-settings-title">
+							{__('weGenius Settings', 'wegenius')}
+						</h1>
+						<p className="wegen-settings-subtitle">
+							{__('Configure your weGenius plugin settings and preferences.', 'wegenius')}
+						</p>
 					</div>
-				)}
 
-				<TabPanel
-					className="bg-white rounded-lg shadow-sm border border-gray-200"
-					activeClass="bg-blue-50 text-blue-700 border-blue-200"
-					orientation="horizontal"
-					tabs={tabs}
-				>
-					{(tab) => (
-						<div className="p-6">
-							{renderTabContent(tab.name)}
+					{/* Success/Error Message */}
+					{saveMessage && (
+						<div className={`wegen-settings-message ${
+							saveMessage.includes('successfully') 
+								? 'wegen-settings-message-success' 
+								: 'wegen-settings-message-error'
+						}`}>
+							<p className="m-0">{saveMessage}</p>
 						</div>
 					)}
-				</TabPanel>
+				</div>
+
+				{/* Main Content Area */}
+				<div className="wegen-settings-main">
+					{/* Left Sidebar Navigation */}
+					<nav className="wegen-settings-sidebar">
+						<ul className="wegen-settings-nav" role="tablist">
+							{tabs.map((tab) => (
+								<li key={tab.name} role="presentation">
+									<button
+										className={`wegen-settings-nav-item ${
+											activeTab === tab.name ? 'wegen-settings-nav-item-active' : ''
+										}`}
+										onClick={() => setActiveTab(tab.name)}
+										role="tab"
+										aria-selected={activeTab === tab.name}
+										aria-controls={`panel-${tab.name}`}
+									>
+										<span className="wegen-settings-nav-icon">{tab.icon}</span>
+										<span className="wegen-settings-nav-title">{tab.title}</span>
+									</button>
+								</li>
+							))}
+						</ul>
+					</nav>
+
+					{/* Right Content Area */}
+					<div className="wegen-settings-content">
+						<div
+							className="wegen-settings-panel"
+							role="tabpanel"
+							id={`panel-${activeTab}`}
+							aria-labelledby={`tab-${activeTab}`}
+						>
+							{renderTabContent(activeTab)}
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	);

@@ -27,6 +27,7 @@
     "@babel/preset-env": "^7.22.0",
     "@babel/preset-react": "^7.22.0",
     "@tailwindcss/postcss": "^4.1.14",
+    "@wordpress/dependency-extraction-webpack-plugin": "^4.31.0",
     "@wordpress/scripts": "^26.0.0",
     "autoprefixer": "^10.4.21",
     "babel-loader": "^9.1.3",

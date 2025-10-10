@@ -1,11 +1,13 @@
 const path = require('path');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const DependencyExtractionWebpackPlugin = require('@wordpress/dependency-extraction-webpack-plugin');
 
 module.exports = {
 	entry: {
 		'dashboard': './src/js/dashboard.js',
 		'settings': './src/js/settings.js',
 		'posts-page': './src/js/posts-page.js',
+		'editor': './src/editor/WeGeniusActions.js',
 	},
 	output: {
 		path: path.resolve(__dirname, 'assets/js'),
@@ -50,6 +52,9 @@ module.exports = {
 		new MiniCssExtractPlugin({
 			filename: '../css/[name].css',
 		}),
+		new DependencyExtractionWebpackPlugin({
+			outputFilename: '[name].asset.php',
+		}),
 	],
 	externals: {
 		'@wordpress/element': 'wp.element',
@@ -60,6 +65,7 @@ module.exports = {
 		'@wordpress/hooks': 'wp.hooks',
 		'@wordpress/url': 'wp.url',
 		'@wordpress/dom-ready': 'wp.domReady',
+		'@wordpress/plugins': 'wp.plugins',
 	},
 	resolve: {
 		extensions: ['.js', '.jsx'],
