@@ -291,6 +291,17 @@ class ApiController extends WP_REST_Controller {
                 'permission_callback' => [ $this, 'check_permissions' ],
             ]
         );
+        
+        // Get all analysis types for a post
+        register_rest_route(
+            self::NAMESPACE,
+            '/analysis/types/(?P<post_id>\d+)',
+            [
+                'methods'             => 'GET',
+                'callback'            => [ $this, 'get_post_analysis_types' ],
+                'permission_callback' => [ $this, 'check_permissions' ],
+            ]
+        );
         // Scan endpoint for editor integration
         register_rest_route(
             self::NAMESPACE,
@@ -833,7 +844,8 @@ class ApiController extends WP_REST_Controller {
     }
 
     /**
-     * Create analysis record in database.
+     * Create or update analysis record in database.
+     * Uses upsert logic: create if doesn't exist, update if exists.
      *
      * @param int    $article_id    Article ID.
      * @param string $analysis_type Analysis type.
@@ -843,19 +855,93 @@ class ApiController extends WP_REST_Controller {
     private function create_analysis_record( $article_id, $analysis_type ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wegenius_analyses';
-        $wpdb->insert(
-            $table_name,
-            [
-                'article_id'    => $article_id,
-                'analysis_type' => $analysis_type,
-                'status'        => 'pending',
-                'created_at'    => current_time( 'mysql' ),
-                'updated_at'    => current_time( 'mysql' ),
-            ],
-            [ '%d', '%s', '%s', '%s', '%s' ]
+        
+        // Check if analysis record already exists for this article and type
+        $existing_analysis = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id FROM $table_name WHERE article_id = %d AND analysis_type = %s",
+                $article_id,
+                $analysis_type
+            )
         );
+        
+        if ( $existing_analysis ) {
+            // Update existing record
+            $wpdb->update(
+                $table_name,
+                [
+                    'status'     => 'pending',
+                    'results'    => null,
+                    'scores'     => null,
+                    'insights'   => null,
+                    'updated_at' => current_time( 'mysql' ),
+                ],
+                [ 'id' => $existing_analysis->id ],
+                [ '%s', '%s', '%s', '%s', '%s' ],
+                [ '%d' ]
+            );
+            
+            return $existing_analysis->id;
+        } else {
+            // Create new record
+            $wpdb->insert(
+                $table_name,
+                [
+                    'article_id'    => $article_id,
+                    'analysis_type' => $analysis_type,
+                    'status'        => 'pending',
+                    'created_at'    => current_time( 'mysql' ),
+                    'updated_at'    => current_time( 'mysql' ),
+                ],
+                [ '%d', '%s', '%s', '%s', '%s' ]
+            );
+            
+            return $wpdb->insert_id;
+        }
+    }
 
-        return $wpdb->insert_id;
+    /**
+     * Get all analysis types for a specific post.
+     *
+     * @param int $post_id WordPress post ID.
+     *
+     * @return array Analysis types with their status.
+     */
+    private function get_post_analysis_types_data( $post_id ) {
+        global $wpdb;
+        $articles_table = $wpdb->prefix . 'wegenius_articles';
+        $analyses_table = $wpdb->prefix . 'wegenius_analyses';
+        
+        // Get article ID for this post
+        $article = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id FROM $articles_table WHERE wp_post_id = %d",
+                $post_id
+            )
+        );
+        
+        if ( ! $article ) {
+            return [];
+        }
+        
+        // Get all analysis types for this article
+        $analyses = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT analysis_type, status, created_at, updated_at FROM $analyses_table WHERE article_id = %d ORDER BY analysis_type",
+                $article->id
+            )
+        );
+        
+        $result = [];
+        foreach ( $analyses as $analysis ) {
+            $result[ $analysis->analysis_type ] = [
+                'status'     => $analysis->status,
+                'created_at'  => $analysis->created_at,
+                'updated_at'  => $analysis->updated_at,
+            ];
+        }
+        
+        return $result;
     }
 
     /**
@@ -1518,6 +1604,39 @@ class ApiController extends WP_REST_Controller {
     }
 
     /**
+     * Get all analysis types for a specific post.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function get_post_analysis_types( $request ) {
+        $post_id = $request->get_param( 'post_id' );
+        
+        if ( ! $post_id ) {
+            return new \WP_Error(
+                'missing_post_id',
+                __( 'Post ID is required.', 'wegenius' ),
+                [ 'status' => 400 ]
+            );
+        }
+        
+        // Validate post exists
+        $post = get_post( $post_id );
+        if ( ! $post ) {
+            return new \WP_Error(
+                'post_not_found',
+                __( 'Post not found.', 'wegenius' ),
+                [ 'status' => 404 ]
+            );
+        }
+        
+        $analysis_types = $this->get_post_analysis_types_data( $post_id );
+        
+        return rest_ensure_response( $analysis_types );
+    }
+
+    /**
      * Get analysis status for a specific post.
      *
      * @param \WP_REST_Request $request The request object.
@@ -1631,6 +1750,9 @@ class ApiController extends WP_REST_Controller {
         // Schedule analysis job
         $this->schedule_analysis( $analysis_id, $data['wp_post_id'], [ $data['action_type'] ?? 'improve' ] );
 
+        // Get all analysis types for this post
+        $all_analysis_types = $this->get_post_analysis_types_data( $data['wp_post_id'] );
+        
         return rest_ensure_response(
             [
                 'success'     => true,
@@ -1638,6 +1760,7 @@ class ApiController extends WP_REST_Controller {
                 'article_id'  => $article_id,
                 'analysis_id' => $analysis_id,
                 'action_type' => $data['action_type'] ?? 'improve',
+                'all_analysis_types' => $all_analysis_types,
             ]
         );
     }

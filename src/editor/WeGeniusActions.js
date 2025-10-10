@@ -7,7 +7,7 @@ import {
     Spinner,
 } from '@wordpress/components';
 import { registerPlugin } from '@wordpress/plugins';
-import { useState } from '@wordpress/element';
+import { useState, useEffect } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 
@@ -22,6 +22,8 @@ const WeGeniusActionsSidebar = () => {
     const [ scanResult, setScanResult ] = useState( null );
     const [ scanStatus, setScanStatus ] = useState( null );
     const [ isCheckingStatus, setIsCheckingStatus ] = useState( false );
+    const [ isInitialLoading, setIsInitialLoading ] = useState( true );
+    const [ allAnalysisTypes, setAllAnalysisTypes ] = useState( {} );
 
     // Get current post data
     const { 
@@ -76,13 +78,25 @@ const WeGeniusActionsSidebar = () => {
         };
     }, [] ); // Add empty dependency array to prevent unnecessary re-renders
 
+    // Automatically check scan status and fetch analysis types when component mounts
+    useEffect( () => {
+        if ( postId ) {
+            checkScanStatus( true );
+            fetchAllAnalysisTypes();
+        }
+    }, [ postId ] );
+
     // Check scan status for current post
-    const checkScanStatus = async () => {
+    const checkScanStatus = async ( isInitialLoad = false ) => {
         if ( ! postId ) {
             return;
         }
 
-        setIsCheckingStatus( true );
+        if ( isInitialLoad ) {
+            setIsInitialLoading( true );
+        } else {
+            setIsCheckingStatus( true );
+        }
         
         try {
             const response = await apiFetch( {
@@ -95,7 +109,28 @@ const WeGeniusActionsSidebar = () => {
             console.error( 'Error checking scan status:', error );
             setScanStatus( null );
         } finally {
-            setIsCheckingStatus( false );
+            if ( isInitialLoad ) {
+                setIsInitialLoading( false );
+            } else {
+                setIsCheckingStatus( false );
+            }
+        }
+    };
+
+    const fetchAllAnalysisTypes = async () => {
+        if ( ! postId ) {
+            return;
+        }
+
+        try {
+            const response = await apiFetch( {
+                path: `/wegenius/v1/analysis/types/${ postId }`,
+                method: 'GET',
+            } );
+
+            setAllAnalysisTypes( response );
+        } catch ( error ) {
+            console.error( 'Failed to fetch analysis types:', error );
         }
     };
 
@@ -140,9 +175,15 @@ const WeGeniusActionsSidebar = () => {
                 message: __( 'Analysis submitted successfully!', 'wegenius' )
             } );
 
+            // Update all analysis types from response
+            if ( response.all_analysis_types ) {
+                setAllAnalysisTypes( response.all_analysis_types );
+            }
+
             // Check status after successful submission
             setTimeout( () => {
                 checkScanStatus();
+                fetchAllAnalysisTypes();
             }, 1000 );
 
         } catch ( error ) {
@@ -230,7 +271,23 @@ const WeGeniusActionsSidebar = () => {
                     </div>
                 ) }
 
-                { scanStatus && (
+                { isInitialLoading && (
+                    <div style={{ 
+                        marginTop: '1rem', 
+                        padding: '0.75rem',
+                        backgroundColor: '#f8f9fa',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '0.25rem',
+                        textAlign: 'center'
+                    }}>
+                        <Spinner />
+                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                            { __( 'Loading analysis results...', 'wegenius' ) }
+                        </p>
+                    </div>
+                ) }
+
+                { scanStatus && !isInitialLoading && (
                     <div style={{ 
                         marginTop: '1rem', 
                         padding: '0.75rem',
@@ -279,59 +336,299 @@ const WeGeniusActionsSidebar = () => {
 
                         { scanStatus.analysis?.results && scanStatus.analysis.status === 'completed' && (
                             <div style={{ marginTop: '0.5rem' }}>
-                                <p style={{ 
-                                    margin: '0 0 0.25rem 0', 
-                                    fontSize: '0.8rem', 
-                                    fontWeight: 'bold' 
-                                }}>
-                                    { __( 'Analysis Results:', 'wegenius' ) }
-                                </p>
                                 <div style={{ 
-                                    maxHeight: '200px', 
-                                    overflowY: 'auto',
-                                    padding: '0.5rem',
-                                    backgroundColor: '#ffffff',
-                                    border: '1px solid #e9ecef',
-                                    borderRadius: '0.25rem',
-                                    fontSize: '0.8rem'
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    marginBottom: '0.75rem' 
                                 }}>
-                                    <pre style={{ 
+                                    <h4 style={{ 
                                         margin: 0, 
-                                        whiteSpace: 'pre-wrap',
-                                        fontFamily: 'inherit'
+                                        fontSize: '0.9rem', 
+                                        fontWeight: 'bold',
+                                        color: '#1d2327'
                                     }}>
-                                        { JSON.stringify( scanStatus.analysis.results, null, 2 ) }
-                                    </pre>
+                                        { __( 'Analysis results', 'wegenius' ) }
+                                    </h4>
+                                    <span style={{ 
+                                        marginLeft: '0.5rem', 
+                                        fontSize: '0.8rem', 
+                                        color: '#6c757d',
+                                        cursor: 'help'
+                                    }}>
+                                        ❓
+                                    </span>
                                 </div>
+                                
+                                { scanStatus.analysis.results.gaps && (
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            marginBottom: '0.5rem',
+                                            cursor: 'pointer'
+                                        }}>
+                                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
+                                            <h5 style={{ 
+                                                margin: 0, 
+                                                fontSize: '0.85rem', 
+                                                fontWeight: 'bold',
+                                                color: '#d63384'
+                                            }}>
+                                                { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps?.length || 0 })
+                                            </h5>
+                                        </div>
+                                        
+                                        { scanStatus.analysis.results.gaps.gaps?.map( ( gap, index ) => (
+                                            <div key={ index } style={{ 
+                                                display: 'flex', 
+                                                alignItems: 'flex-start', 
+                                                marginBottom: '0.5rem',
+                                                padding: '0.5rem',
+                                                backgroundColor: '#f8f9fa',
+                                                borderRadius: '0.25rem'
+                                            }}>
+                                                <span style={{ 
+                                                    marginRight: '0.5rem', 
+                                                    marginTop: '0.1rem',
+                                                    fontSize: '0.7rem',
+                                                    color: '#6c757d'
+                                                }}>
+                                                    ●
+                                                </span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ 
+                                                        fontSize: '0.8rem', 
+                                                        fontWeight: 'bold',
+                                                        color: '#0073aa',
+                                                        textDecoration: 'underline',
+                                                        marginBottom: '0.25rem'
+                                                    }}>
+                                                        { gap.title || gap.type || __( 'Issue', 'wegenius' ) }
+                                                    </div>
+                                                    <div style={{ 
+                                                        fontSize: '0.75rem', 
+                                                        color: '#1d2327',
+                                                        lineHeight: '1.4'
+                                                    }}>
+                                                        { gap.description || __( 'This area needs attention.', 'wegenius' ) }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) ) }
+                                    </div>
+                                ) }
+
+                                { scanStatus.analysis.results.improvements && (
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            marginBottom: '0.5rem',
+                                            cursor: 'pointer'
+                                        }}>
+                                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
+                                            <h5 style={{ 
+                                                margin: 0, 
+                                                fontSize: '0.85rem', 
+                                                fontWeight: 'bold',
+                                                color: '#00a32a'
+                                            }}>
+                                                { __( 'Good results', 'wegenius' ) } ({ scanStatus.analysis.results.improvements.length || 0 })
+                                            </h5>
+                                        </div>
+                                        
+                                        { scanStatus.analysis.results.improvements.map( ( improvement, index ) => (
+                                            <div key={ index } style={{ 
+                                                display: 'flex', 
+                                                alignItems: 'flex-start', 
+                                                marginBottom: '0.5rem',
+                                                padding: '0.5rem',
+                                                backgroundColor: '#f0f8f0',
+                                                borderRadius: '0.25rem'
+                                            }}>
+                                                <span style={{ 
+                                                    marginRight: '0.5rem', 
+                                                    marginTop: '0.1rem',
+                                                    fontSize: '0.7rem',
+                                                    color: '#00a32a'
+                                                }}>
+                                                    ●
+                                                </span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ 
+                                                        fontSize: '0.8rem', 
+                                                        fontWeight: 'bold',
+                                                        color: '#0073aa',
+                                                        textDecoration: 'underline',
+                                                        marginBottom: '0.25rem'
+                                                    }}>
+                                                        { improvement.title || improvement.type || __( 'Good practice', 'wegenius' ) }
+                                                    </div>
+                                                    <div style={{ 
+                                                        fontSize: '0.75rem', 
+                                                        color: '#1d2327',
+                                                        lineHeight: '1.4'
+                                                    }}>
+                                                        { improvement.description || __( 'Well done!', 'wegenius' ) }
+                                                    </div>
+                                                </div>
+                                                <span style={{ 
+                                                    fontSize: '0.7rem',
+                                                    color: '#6c757d',
+                                                    cursor: 'pointer'
+                                                }}>
+                                                    👁
+                                                </span>
+                                            </div>
+                                        ) ) }
+                                    </div>
+                                ) }
                             </div>
                         ) }
 
                         { scanStatus.analysis?.scores && scanStatus.analysis.status === 'completed' && (
                             <div style={{ marginTop: '0.5rem' }}>
-                                <p style={{ 
-                                    margin: '0 0 0.25rem 0', 
-                                    fontSize: '0.8rem', 
-                                    fontWeight: 'bold' 
+                                <h4 style={{ 
+                                    margin: '0 0 0.75rem 0', 
+                                    fontSize: '0.9rem', 
+                                    fontWeight: 'bold',
+                                    color: '#1d2327'
                                 }}>
-                                    { __( 'Scores:', 'wegenius' ) }
-                                </p>
+                                    { __( 'Scores', 'wegenius' ) }
+                                </h4>
+                                
                                 <div style={{ 
-                                    padding: '0.5rem',
-                                    backgroundColor: '#ffffff',
-                                    border: '1px solid #e9ecef',
-                                    borderRadius: '0.25rem',
-                                    fontSize: '0.8rem'
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                                    gap: '0.5rem'
                                 }}>
-                                    <pre style={{ 
-                                        margin: 0, 
-                                        whiteSpace: 'pre-wrap',
-                                        fontFamily: 'inherit'
-                                    }}>
-                                        { JSON.stringify( scanStatus.analysis.scores, null, 2 ) }
-                                    </pre>
+                                    { Object.entries( scanStatus.analysis.scores ).map( ( [ key, value ] ) => {
+                                        const score = typeof value === 'number' ? value : 0;
+                                        const getScoreColor = ( score ) => {
+                                            if ( score >= 80 ) return '#00a32a';
+                                            if ( score >= 60 ) return '#dba617';
+                                            return '#d63384';
+                                        };
+                                        
+                                        const getScoreLabel = ( key ) => {
+                                            const labels = {
+                                                overall: __( 'Overall', 'wegenius' ),
+                                                seo: __( 'SEO', 'wegenius' ),
+                                                readability: __( 'Readability', 'wegenius' ),
+                                                structure: __( 'Structure', 'wegenius' ),
+                                                engagement: __( 'Engagement', 'wegenius' )
+                                            };
+                                            return labels[ key ] || key.charAt( 0 ).toUpperCase() + key.slice( 1 );
+                                        };
+                                        
+                                        return (
+                                            <div key={ key } style={{ 
+                                                padding: '0.75rem',
+                                                backgroundColor: '#ffffff',
+                                                border: '1px solid #e9ecef',
+                                                borderRadius: '0.25rem',
+                                                textAlign: 'center'
+                                            }}>
+                                                <div style={{ 
+                                                    fontSize: '1.5rem',
+                                                    fontWeight: 'bold',
+                                                    color: getScoreColor( score ),
+                                                    marginBottom: '0.25rem'
+                                                }}>
+                                                    { score }
+                                                </div>
+                                                <div style={{ 
+                                                    fontSize: '0.7rem',
+                                                    color: '#6c757d',
+                                                    fontWeight: '500'
+                                                }}>
+                                                    { getScoreLabel( key ) }
+                                                </div>
+                                            </div>
+                                        );
+                                    } ) }
                                 </div>
                             </div>
                         ) }
+                    </div>
+                ) }
+
+                {/* All Analysis Types Section */}
+                { Object.keys( allAnalysisTypes ).length > 0 && (
+                    <div style={{ 
+                        marginTop: '1rem', 
+                        padding: '0.75rem',
+                        backgroundColor: '#f8f9fa',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '0.25rem'
+                    }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>
+                            { __( 'All Analysis Types', 'wegenius' ) }
+                        </h4>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            { Object.entries( allAnalysisTypes ).map( ( [ type, data ] ) => {
+                                const getStatusIcon = ( status ) => {
+                                    switch ( status ) {
+                                        case 'completed': return '✅';
+                                        case 'processing': return '🔄';
+                                        case 'pending': return '⏳';
+                                        case 'failed': return '❌';
+                                        default: return '❓';
+                                    }
+                                };
+
+                                const getStatusColor = ( status ) => {
+                                    switch ( status ) {
+                                        case 'completed': return '#28a745';
+                                        case 'processing': return '#007cba';
+                                        case 'pending': return '#ffc107';
+                                        case 'failed': return '#dc3545';
+                                        default: return '#6c757d';
+                                    }
+                                };
+
+                                const getTypeLabel = ( type ) => {
+                                    const labels = {
+                                        improve: __( 'Improve', 'wegenius' ),
+                                        gaps: __( 'Gaps', 'wegenius' ),
+                                        ideas: __( 'Ideas', 'wegenius' )
+                                    };
+                                    return labels[ type ] || type.charAt( 0 ).toUpperCase() + type.slice( 1 );
+                                };
+
+                                return (
+                                    <div key={ type } style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'space-between',
+                                        padding: '0.5rem',
+                                        backgroundColor: '#ffffff',
+                                        border: '1px solid #e9ecef',
+                                        borderRadius: '0.25rem'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                            <span style={{ marginRight: '0.5rem', fontSize: '1rem' }}>
+                                                { getStatusIcon( data.status ) }
+                                            </span>
+                                            <span style={{ 
+                                                fontWeight: 'bold',
+                                                fontSize: '0.85rem'
+                                            }}>
+                                                { getTypeLabel( type ) }
+                                            </span>
+                                        </div>
+                                        <div style={{ 
+                                            fontSize: '0.75rem',
+                                            color: getStatusColor( data.status ),
+                                            fontWeight: '500'
+                                        }}>
+                                            { data.status.charAt( 0 ).toUpperCase() + data.status.slice( 1 ) }
+                                        </div>
+                                    </div>
+                                );
+                            } ) }
+                        </div>
                     </div>
                 ) }
             </PanelBody>
