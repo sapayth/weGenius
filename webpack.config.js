@@ -14,6 +14,11 @@ module.exports = {
 		filename: '[name].js',
 		clean: true,
 	},
+	watchOptions: {
+		ignored: /node_modules/,
+		aggregateTimeout: 300,
+		poll: 1000,
+	},
 	module: {
 		rules: [
 			{
@@ -75,4 +80,11 @@ module.exports = {
 	},
 	devtool: process.env.NODE_ENV === 'development' ? 'source-map' : false,
 	mode: process.env.NODE_ENV || 'development',
+	stats: {
+		colors: true,
+		modules: false,
+		children: false,
+		chunks: false,
+		chunkModules: false,
+	},
 };

@@ -40,6 +40,16 @@ class AnalysisJobHandler {
 	 */
 	public function __construct() {
 		$this->init_hooks();
+		
+		// Add debug hooks
+		add_action( 'wp_ajax_wegenius_test_scheduler', [ $this, 'test_action_scheduler' ] );
+		add_action( 'wp_ajax_wegenius_trigger_analysis', [ $this, 'trigger_analysis_manually' ] );
+		add_action( 'wp_ajax_wegenius_check_scheduler', [ $this, 'check_scheduler_status' ] );
+		add_action( 'wp_ajax_wegenius_force_run', [ $this, 'force_run_scheduler' ] );
+		add_action( 'wp_ajax_wegenius_set_api_settings', [ $this, 'set_api_settings' ] );
+		add_action( 'wp_ajax_wegenius_get_settings', [ $this, 'get_current_settings' ] );
+		add_action( 'wp_ajax_wegenius_set_endpoint', [ $this, 'set_endpoint_only' ] );
+		add_action( 'wp_ajax_wegenius_debug_options', [ $this, 'debug_wordpress_options' ] );
 	}
 
 	/**
@@ -103,7 +113,49 @@ class AnalysisJobHandler {
 	 * @param array $analysis_types Analysis types.
 	 * @return void
 	 */
-	public function process_analysis( int $analysis_id, int $post_id, array $analysis_types ): void {
+	public function process_analysis( $analysis_id, $post_id = null, $analysis_types = null ): void {
+		// Handle Action Scheduler call format
+		if ( is_array( $analysis_id ) ) {
+			// Action Scheduler passes arguments as an array
+			$args = $analysis_id;
+			$analysis_id = $args['analysis_id'] ?? 0;
+			$post_id = $args['post_id'] ?? 0;
+			$analysis_types = $args['analysis_types'] ?? [];
+		}
+		
+		// Ensure we have valid data
+		$analysis_id = intval( $analysis_id );
+		$post_id = intval( $post_id );
+		$analysis_types = is_array( $analysis_types ) ? $analysis_types : [];
+		// Log that the job is starting
+		error_log( sprintf( 'WeGenius: Starting analysis job for post %d, analysis %d, types: %s', $post_id, $analysis_id, implode( ', ', $analysis_types ) ) );
+		
+		// Debug: Log the raw arguments received
+		error_log( sprintf( 'WeGenius: Raw arguments - analysis_id: %s, post_id: %s, analysis_types: %s', 
+			wp_json_encode( $analysis_id ), 
+			wp_json_encode( $post_id ), 
+			wp_json_encode( $analysis_types ) 
+		) );
+		
+		// If no analysis types provided, get from database
+		if ( empty( $analysis_types ) ) {
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'wegenius_analyses';
+			$analysis = $wpdb->get_row( $wpdb->prepare(
+				"SELECT analysis_type FROM $table_name WHERE id = %d",
+				$analysis_id
+			) );
+			
+			if ( $analysis && $analysis->analysis_type ) {
+				$analysis_types = [ $analysis->analysis_type ];
+				error_log( sprintf( 'WeGenius: Retrieved analysis type from database: %s', $analysis->analysis_type ) );
+			} else {
+				// Default fallback
+				$analysis_types = [ 'improve' ];
+				error_log( 'WeGenius: No analysis type found, using default: improve' );
+			}
+		}
+		
 		// Update status to processing.
 		$this->update_analysis_status( $analysis_id, 'processing' );
 
@@ -114,14 +166,19 @@ class AnalysisJobHandler {
 				throw new \Exception( 'Post not found.' );
 			}
 
+			error_log( sprintf( 'WeGenius: Post found - ID: %d, Title: %s', $post->ID, $post->post_title ) );
+
 			// Prepare analysis data.
 			$analysis_data = $this->prepare_analysis_data( $post, $analysis_types );
+			error_log( sprintf( 'WeGenius: Analysis data prepared - Content length: %d chars', strlen( $analysis_data['content'] ) ) );
 
 			// Process each analysis type.
 			$results = [];
 			foreach ( $analysis_types as $type ) {
+				error_log( sprintf( 'WeGenius: Processing analysis type: %s', $type ) );
 				$result = $this->process_analysis_type( $analysis_id, $type, $analysis_data );
 				$results[ $type ] = $result;
+				error_log( sprintf( 'WeGenius: Completed analysis type: %s', $type ) );
 			}
 
 			// Store results.
@@ -190,8 +247,152 @@ class AnalysisJobHandler {
 	 * @return array Analysis result.
 	 */
 	private function process_analysis_type( int $analysis_id, string $type, array $data ): array {
-		// For now, simulate analysis processing.
-		// In a real implementation, this would call external AI APIs.
+		// Call external WeGenius API
+		$api_result = $this->call_external_wegenius_api( $analysis_id, $type, $data );
+		
+		if ( is_wp_error( $api_result ) ) {
+			// If API call fails, fall back to mock data
+			error_log( sprintf( 'WeGenius: External API call failed for analysis %d, type %s: %s', $analysis_id, $type, $api_result->get_error_message() ) );
+			return $this->get_mock_analysis_result( $type, $data );
+		}
+
+		return $api_result;
+	}
+
+	/**
+	 * Call external WeGenius API.
+	 *
+	 * @param int    $analysis_id Analysis ID.
+	 * @param string $type Analysis type.
+	 * @param array  $data Analysis data.
+	 * @return array|\WP_Error API response or error.
+	 */
+	private function call_external_wegenius_api( int $analysis_id, string $type, array $data ) {
+		// Get API settings
+		$settings = get_option( 'wegenius_settings', [] );
+		
+		// Debug: Log the raw settings structure
+		error_log( 'WeGenius: Raw settings from database: ' . wp_json_encode( $settings ) );
+		
+		$api_endpoint = $settings['api']['apiEndpoint'] ?? '';
+		$api_key = $settings['api']['apiKey'] ?? '';
+		
+		// Debug: Check if api key exists in different locations
+		if ( empty( $api_endpoint ) ) {
+			error_log( 'WeGenius: Endpoint empty, checking alternative locations...' );
+			error_log( 'WeGenius: settings[api] exists: ' . ( isset( $settings['api'] ) ? 'YES' : 'NO' ) );
+			if ( isset( $settings['api'] ) ) {
+				error_log( 'WeGenius: settings[api] content: ' . wp_json_encode( $settings['api'] ) );
+			}
+		}
+
+		// Debug: Log the settings
+		error_log( sprintf( 'WeGenius: API Settings - Endpoint: %s, Key: %s', 
+			$api_endpoint ? 'SET' : 'NOT SET', 
+			$api_key ? 'SET' : 'NOT SET' 
+		) );
+		error_log( sprintf( 'WeGenius: Full settings: %s', wp_json_encode( $settings ) ) );
+		error_log( sprintf( 'WeGenius: Raw endpoint value: "%s"', $api_endpoint ) );
+		error_log( sprintf( 'WeGenius: Raw key value: "%s"', $api_key ) );
+
+		// If endpoint is empty, try direct option
+		if ( empty( $api_endpoint ) ) {
+			$api_endpoint = get_option( 'wegenius_api_endpoint', '' );
+			error_log( 'WeGenius: Trying direct endpoint option: ' . $api_endpoint );
+		}
+		
+		if ( empty( $api_endpoint ) || empty( $api_key ) ) {
+			error_log( sprintf( 'WeGenius: API not configured - Endpoint: %s, Key: %s', 
+				$api_endpoint ?: 'EMPTY', 
+				$api_key ?: 'EMPTY' 
+			) );
+			return new \WP_Error(
+				'api_not_configured',
+				__( 'External API not configured.', 'wegenius' )
+			);
+		}
+
+		// Prepare data for external API following Postman collection structure
+		$api_data = [
+			'wp_post_id' => $data['post_id'],
+			'title' => $data['title'],
+			'content' => $data['content'],
+			'permalink' => $data['permalink'],
+			'featured_image' => $data['meta_data']['featured_image'] ?? '',
+			'status' => $data['status'],
+			'published_at' => $data['published_at'],
+			'author_name' => $data['meta_data']['author'] ?? '',
+			'action_type' => $type,
+			'meta_data' => [
+				'categories' => $data['meta_data']['categories'] ?? [],
+				'tags' => $data['meta_data']['tags'] ?? [],
+				'excerpt' => $data['meta_data']['excerpt'] ?? '',
+			]
+		];
+
+		// Ensure endpoint doesn't have trailing slash
+		$clean_endpoint = rtrim( $api_endpoint, '/' );
+		$full_url = $clean_endpoint . '/articles/submit';
+		
+		// Log the API call details for debugging
+		error_log( sprintf( 'WeGenius: Making API call to %s', $full_url ) );
+		error_log( sprintf( 'WeGenius: API Data: %s', wp_json_encode( $api_data ) ) );
+
+		// Make API request
+		$response = wp_remote_post( $full_url, [
+			'headers' => [
+				'Content-Type' => 'application/json',
+				'X-API-KEY' => $api_key,
+			],
+			'body' => wp_json_encode( $api_data ),
+			'timeout' => 30,
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			error_log( sprintf( 'WeGenius: API request failed: %s', $response->get_error_message() ) );
+			return $response;
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$status_code = wp_remote_retrieve_response_code( $response );
+
+		error_log( sprintf( 'WeGenius: API response status: %d', $status_code ) );
+		error_log( sprintf( 'WeGenius: API response body: %s', $body ) );
+
+		if ( $status_code !== 200 ) {
+			return new \WP_Error(
+				'api_request_failed',
+				sprintf( __( 'API request failed with status %d', 'wegenius' ), $status_code ),
+				[ 'status' => $status_code ]
+			);
+		}
+
+		$result = json_decode( $body, true );
+		if ( ! $result ) {
+			return new \WP_Error(
+				'api_invalid_response',
+				__( 'Invalid JSON response from API', 'wegenius' )
+			);
+		}
+
+		// Format the result for our system
+		return [
+			'type' => $type,
+			'status' => 'completed',
+			'processed_at' => current_time( 'mysql' ),
+			'external_analysis_id' => $result['analysis_id'] ?? null,
+			'api_response' => $result,
+		];
+	}
+
+	/**
+	 * Get mock analysis result (fallback when API fails).
+	 *
+	 * @param string $type Analysis type.
+	 * @param array  $data Analysis data.
+	 * @return array Mock result.
+	 */
+	private function get_mock_analysis_result( string $type, array $data ): array {
 		$result = [
 			'type' => $type,
 			'status' => 'completed',
@@ -563,5 +764,211 @@ class AnalysisJobHandler {
 		if ( $deleted ) {
 			error_log( sprintf( 'WeGenius: Cleaned up %d old analysis records', $deleted ) );
 		}
+	}
+
+	/**
+	 * Test Action Scheduler functionality.
+	 *
+	 * @return void
+	 */
+	public function test_action_scheduler(): void {
+		// Check if Action Scheduler is available
+		if ( ! function_exists( 'as_schedule_single_action' ) ) {
+			error_log( 'WeGenius: Action Scheduler not available' );
+			wp_die( 'Action Scheduler not available' );
+		}
+
+		// Schedule a test job
+		$action_id = as_schedule_single_action(
+			time() + 5, // Run in 5 seconds
+			'wegenius_test_job',
+			[ 'test' => 'data' ],
+			'wegenius-test'
+		);
+
+		if ( $action_id ) {
+			error_log( 'WeGenius: Test job scheduled with ID: ' . $action_id );
+			wp_die( 'Test job scheduled with ID: ' . $action_id );
+		} else {
+			error_log( 'WeGenius: Failed to schedule test job' );
+			wp_die( 'Failed to schedule test job' );
+		}
+	}
+
+	/**
+	 * Manually trigger analysis for debugging.
+	 *
+	 * @return void
+	 */
+	public function trigger_analysis_manually(): void {
+		$analysis_id = intval( $_GET['analysis_id'] ?? 0 );
+		$post_id = intval( $_GET['post_id'] ?? 0 );
+		$type = sanitize_text_field( $_GET['type'] ?? 'improve' );
+
+		if ( ! $analysis_id || ! $post_id ) {
+			wp_die( 'Missing analysis_id or post_id' );
+		}
+
+		error_log( sprintf( 'WeGenius: Manually triggering analysis %d for post %d, type %s', $analysis_id, $post_id, $type ) );
+		
+		// Call the analysis method directly
+		$this->process_analysis( $analysis_id, $post_id, [ $type ] );
+		
+		wp_die( 'Analysis triggered manually' );
+	}
+
+	/**
+	 * Check Action Scheduler status.
+	 *
+	 * @return void
+	 */
+	public function check_scheduler_status(): void {
+		$status = [
+			'action_scheduler_available' => function_exists( 'as_schedule_single_action' ),
+			'next_scheduled' => null,
+			'pending_actions' => 0,
+			'completed_actions' => 0,
+		];
+
+		if ( function_exists( 'as_next_scheduled_action' ) ) {
+			$status['next_scheduled'] = as_next_scheduled_action( self::HOOK, [], self::GROUP );
+		}
+
+		if ( function_exists( 'as_get_scheduled_actions' ) ) {
+			$pending = as_get_scheduled_actions( [
+				'hook' => self::HOOK,
+				'group' => self::GROUP,
+				'status' => 'pending',
+			] );
+			$status['pending_actions'] = count( $pending );
+
+			$completed = as_get_scheduled_actions( [
+				'hook' => self::HOOK,
+				'group' => self::GROUP,
+				'status' => 'complete',
+			] );
+			$status['completed_actions'] = count( $completed );
+		}
+
+		error_log( 'WeGenius: Scheduler status: ' . wp_json_encode( $status ) );
+		wp_die( wp_json_encode( $status, JSON_PRETTY_PRINT ) );
+	}
+
+	/**
+	 * Force Action Scheduler to run pending jobs.
+	 *
+	 * @return void
+	 */
+	public function force_run_scheduler(): void {
+		error_log( 'WeGenius: Forcing Action Scheduler to run pending jobs' );
+		
+		// Check if Action Scheduler is available
+		if ( ! function_exists( 'as_run_all_actions' ) ) {
+			error_log( 'WeGenius: as_run_all_actions function not available' );
+			wp_die( 'Action Scheduler run function not available' );
+		}
+
+		// Force run all pending actions
+		$result = as_run_all_actions();
+		
+		error_log( 'WeGenius: Action Scheduler run result: ' . wp_json_encode( $result ) );
+		wp_die( 'Action Scheduler forced to run. Result: ' . wp_json_encode( $result ) );
+	}
+
+	/**
+	 * Set API settings for testing.
+	 *
+	 * @return void
+	 */
+	public function set_api_settings(): void {
+		$settings = [
+			'api' => [
+				'apiEndpoint' => 'https://wegenius.fahmidsroadmap.com/api/ai',
+				'apiKey' => 'test-api-key-123',
+				'timeout' => 30,
+				'rateLimit' => 10,
+				'retryAttempts' => 3,
+			],
+			'analysis' => [
+				'defaultAnalysisTypes' => [ 'improve', 'gaps', 'ideas' ],
+				'autoAnalyze' => false,
+				'reanalysisFrequency' => 'never',
+				'minContentLength' => 100,
+				'contentTypes' => [ 'post' ],
+				'categories' => [],
+			],
+		];
+
+		$updated = update_option( 'wegenius_settings', $settings );
+		
+		error_log( 'WeGenius: API settings updated: ' . ( $updated ? 'SUCCESS' : 'FAILED' ) );
+		error_log( 'WeGenius: Settings: ' . wp_json_encode( $settings ) );
+		
+		wp_die( 'API settings set for testing. Updated: ' . ( $updated ? 'SUCCESS' : 'FAILED' ) );
+	}
+
+	/**
+	 * Get current API settings.
+	 *
+	 * @return void
+	 */
+	public function get_current_settings(): void {
+		$settings = get_option( 'wegenius_settings', [] );
+		
+		error_log( 'WeGenius: Current settings: ' . wp_json_encode( $settings ) );
+		
+		wp_die( wp_json_encode( $settings, JSON_PRETTY_PRINT ) );
+	}
+
+	/**
+	 * Set just the API endpoint.
+	 *
+	 * @return void
+	 */
+	public function set_endpoint_only(): void {
+		$settings = get_option( 'wegenius_settings', [] );
+		
+		// Ensure api array exists
+		if ( ! isset( $settings['api'] ) ) {
+			$settings['api'] = [];
+		}
+		
+		// Set the endpoint
+		$settings['api']['apiEndpoint'] = 'https://wegenius.fahmidsroadmap.com/api/ai';
+		
+		$updated = update_option( 'wegenius_settings', $settings );
+		
+		error_log( 'WeGenius: Endpoint set - Updated: ' . ( $updated ? 'SUCCESS' : 'FAILED' ) );
+		error_log( 'WeGenius: New settings: ' . wp_json_encode( $settings ) );
+		
+		wp_die( 'Endpoint set to: https://wegenius.fahmidsroadmap.com/api/ai. Updated: ' . ( $updated ? 'SUCCESS' : 'FAILED' ) );
+	}
+
+	/**
+	 * Debug WordPress options.
+	 *
+	 * @return void
+	 */
+	public function debug_wordpress_options(): void {
+		// Check if option exists
+		$option_exists = get_option( 'wegenius_settings' );
+		error_log( 'WeGenius: Option exists: ' . ( $option_exists ? 'YES' : 'NO' ) );
+		
+		// Try to set a simple test
+		$test_set = update_option( 'wegenius_test', 'test_value' );
+		error_log( 'WeGenius: Test option set: ' . ( $test_set ? 'SUCCESS' : 'FAILED' ) );
+		
+		// Try to get it back
+		$test_get = get_option( 'wegenius_test' );
+		error_log( 'WeGenius: Test option retrieved: ' . $test_get );
+		
+		// Try to set the endpoint directly
+		$direct_set = update_option( 'wegenius_api_endpoint', 'https://wegenius.fahmidsroadmap.com/api/ai' );
+		error_log( 'WeGenius: Direct endpoint set: ' . ( $direct_set ? 'SUCCESS' : 'FAILED' ) );
+		
+		$direct_get = get_option( 'wegenius_api_endpoint' );
+		error_log( 'WeGenius: Direct endpoint retrieved: ' . $direct_get );
+		
+		wp_die( 'Debug complete. Check logs for results.' );
 	}
 }

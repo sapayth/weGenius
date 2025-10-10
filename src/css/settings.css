@@ -371,6 +371,20 @@
 	pointer-events: none;
 }
 
+/* Full-width TextControl styles */
+.wegen-textcontrol-full-width {
+	width: 100%;
+}
+
+.wegen-textcontrol-full-width .components-base-control__field {
+	width: 100%;
+}
+
+.wegen-textcontrol-full-width .components-text-control__input {
+	width: 100%;
+	max-width: 100%;
+}
+
 /* Animation for smooth transitions */
 * {
 	transition-property: background-color, border-color, color, transform, box-shadow;

@@ -2,9 +2,6 @@ import { useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { ApiConfiguration } from './ApiConfiguration';
 import { AnalysisOptions } from './AnalysisOptions';
-import { ContentGenerationSettings } from './ContentGenerationSettings';
-import { PerformanceSettings } from './PerformanceSettings';
-import { PermissionsSettings } from './PermissionsSettings';
 
 /**
  * Settings Tabs Component
@@ -30,21 +27,6 @@ export const SettingsTabs = () => {
 			name: 'analysis',
 			title: __('Analysis Options', 'wegenius'),
 			icon: '🔍',
-		},
-		{
-			name: 'content-generation',
-			title: __('Content Generation', 'wegenius'),
-			icon: '✍️',
-		},
-		{
-			name: 'performance',
-			title: __('Performance', 'wegenius'),
-			icon: '⚡',
-		},
-		{
-			name: 'permissions',
-			title: __('Permissions', 'wegenius'),
-			icon: '🔒',
 		},
 	];
 
@@ -88,12 +70,6 @@ export const SettingsTabs = () => {
 				return <ApiConfiguration onSave={handleSave} isSaving={isSaving} />;
 			case 'analysis':
 				return <AnalysisOptions onSave={handleSave} isSaving={isSaving} />;
-			case 'content-generation':
-				return <ContentGenerationSettings onSave={handleSave} isSaving={isSaving} />;
-			case 'performance':
-				return <PerformanceSettings onSave={handleSave} isSaving={isSaving} />;
-			case 'permissions':
-				return <PermissionsSettings onSave={handleSave} isSaving={isSaving} />;
 			default:
 				return null;
 		}

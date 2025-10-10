@@ -2,9 +2,9 @@ import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { Card, CardBody, CardHeader } from '@wordpress/components';
 import { StatusCards } from './StatusCards';
-import { AnalysisTypesGrid } from './AnalysisTypesGrid';
-import { RecentActivity } from './RecentActivity';
-import { ContentFilters } from './ContentFilters';
+import { ThisWeekSection } from './ThisWeekSection';
+import { RecentAnalysisTable } from './RecentAnalysisTable';
+import { IdeaInboxTable } from './IdeaInboxTable';
 
 /**
  * Main Dashboard Overview Component
@@ -15,29 +15,20 @@ export const DashboardOverview = () => {
 	const [dashboardData, setDashboardData] = useState({
 		overview: {
 			analyzed: 0,
-			pending: 0,
-			failed: 0,
-			neverAnalyzed: 0,
+			generated: 0,
+			suggestions: 0,
 		},
-		analysisTypes: {
-			improve: 0,
-			gaps: 0,
-			ideas: 0,
-			trends: 0,
+		thisWeek: {
+			articlesGenerated: 0,
 		},
-		recentActivity: [],
+		recentAnalyses: [],
+		ideaInbox: [],
 		loading: true,
-	});
-
-	const [filters, setFilters] = useState({
-		postType: 'post',
-		category: 'all',
-		dateRange: '30',
 	});
 
 	useEffect(() => {
 		loadDashboardData();
-	}, [filters]);
+	}, []);
 
 	/**
 	 * Load dashboard data from API
@@ -47,12 +38,11 @@ export const DashboardOverview = () => {
 			setDashboardData(prev => ({ ...prev, loading: true }));
 
 			const response = await fetch('/wp-json/wegenius/v1/dashboard/overview', {
-				method: 'POST',
+				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',
 					'X-WP-Nonce': window.wegeniusAdmin.nonce,
 				},
-				body: JSON.stringify(filters),
 			});
 
 			if (!response.ok) {
@@ -74,15 +64,6 @@ export const DashboardOverview = () => {
 		}
 	};
 
-	/**
-	 * Handle filter changes
-	 */
-	const handleFilterChange = (filterType, value) => {
-		setFilters(prev => ({
-			...prev,
-			[filterType]: value,
-		}));
-	};
 
 	/**
 	 * Refresh dashboard data
@@ -130,24 +111,24 @@ export const DashboardOverview = () => {
 					</div>
 				</div>
 
-				<ContentFilters
-					filters={filters}
-					onFilterChange={handleFilterChange}
-				/>
-
 				<div className="space-y-8">
 					<StatusCards
 						data={dashboardData.overview}
 						loading={dashboardData.loading}
 					/>
 
-					<AnalysisTypesGrid
-						data={dashboardData.analysisTypes}
+					<ThisWeekSection
+						data={dashboardData.thisWeek}
 						loading={dashboardData.loading}
 					/>
 
-					<RecentActivity
-						activities={dashboardData.recentActivity}
+					<RecentAnalysisTable
+						analyses={dashboardData.recentAnalyses}
+						loading={dashboardData.loading}
+					/>
+
+					<IdeaInboxTable
+						ideas={dashboardData.ideaInbox}
 						loading={dashboardData.loading}
 					/>
 				</div>

@@ -119,6 +119,7 @@ export const ApiConfiguration = ({ onSave, isSaving }) => {
 							onChange={(value) => handleSettingChange('apiEndpoint', value)}
 							placeholder="https://api.wegenius.com/v1/analyze"
 							help={__('Enter the full URL to your weGenius API endpoint.', 'wegenius')}
+							className="wegen-textcontrol-full-width"
 						/>
 
 						<TextControl
@@ -128,6 +129,7 @@ export const ApiConfiguration = ({ onSave, isSaving }) => {
 							type="password"
 							placeholder="••••••••••••••••"
 							help={__('Your weGenius API authentication key.', 'wegenius')}
+							className="wegen-textcontrol-full-width"
 						/>
 
 						<div className="flex items-center space-x-4">
@@ -156,47 +158,6 @@ export const ApiConfiguration = ({ onSave, isSaving }) => {
 								</Notice>
 							)}
 						</div>
-					</div>
-				</CardBody>
-			</Card>
-
-			<Card className="mb-6">
-				<CardHeader>
-					<h3 className="text-md font-semibold text-gray-900 m-0">
-						{__('Advanced Settings', 'wegenius')}
-					</h3>
-				</CardHeader>
-				<CardBody>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<TextControl
-							label={__('Timeout (seconds)', 'wegenius')}
-							value={settings.timeout}
-							onChange={(value) => handleSettingChange('timeout', parseInt(value) || 30)}
-							type="number"
-							min="5"
-							max="300"
-							help={__('Request timeout in seconds', 'wegenius')}
-						/>
-
-						<TextControl
-							label={__('Rate Limit (requests/minute)', 'wegenius')}
-							value={settings.rateLimit}
-							onChange={(value) => handleSettingChange('rateLimit', parseInt(value) || 10)}
-							type="number"
-							min="1"
-							max="100"
-							help={__('Maximum requests per minute', 'wegenius')}
-						/>
-
-						<TextControl
-							label={__('Retry Attempts', 'wegenius')}
-							value={settings.retryAttempts}
-							onChange={(value) => handleSettingChange('retryAttempts', parseInt(value) || 3)}
-							type="number"
-							min="0"
-							max="10"
-							help={__('Number of retry attempts for failed requests', 'wegenius')}
-						/>
 					</div>
 				</CardBody>
 			</Card>

@@ -18,50 +18,41 @@ export const StatusCards = ({ data, loading }) => {
 	const cards = [
 		{
 			key: 'analyzed',
-			title: __('Analyzed', 'wegenius'),
+			title: __('Total Articles Analyzed', 'wegenius'),
 			value: data.analyzed,
 			icon: '📊',
 			color: 'wegen-green',
 			description: __('Posts with completed analysis', 'wegenius'),
 		},
 		{
-			key: 'pending',
-			title: __('Pending', 'wegenius'),
-			value: data.pending,
-			icon: '⏳',
-			color: 'wegen-yellow',
-			description: __('Analyses in progress', 'wegenius'),
+			key: 'generated',
+			title: __('Total Articles Generated/Improved', 'wegenius'),
+			value: data.generated || 0,
+			icon: '✨',
+			color: 'wegen-blue',
+			description: __('Articles created or enhanced', 'wegenius'),
 		},
 		{
-			key: 'failed',
-			title: __('Failed', 'wegenius'),
-			value: data.failed,
-			icon: '❌',
-			color: 'wegen-red',
-			description: __('Analyses that failed', 'wegenius'),
-		},
-		{
-			key: 'neverAnalyzed',
-			title: __('Never Analyzed', 'wegenius'),
-			value: data.neverAnalyzed,
-			icon: '📝',
-			color: 'wegen-gray',
-			description: __('Posts never analyzed', 'wegenius'),
+			key: 'suggestions',
+			title: __('Total Suggestions Saved', 'wegenius'),
+			value: data.suggestions || 0,
+			icon: '💡',
+			color: 'wegen-purple',
+			description: __('Saved content suggestions', 'wegenius'),
 		},
 	];
 
 	const getCardColors = (key) => {
 		const colors = {
 			analyzed: 'border-l-green-500 bg-green-50',
-			pending: 'border-l-yellow-500 bg-yellow-50',
-			failed: 'border-l-red-500 bg-red-50',
-			neverAnalyzed: 'border-l-gray-500 bg-gray-50',
+			generated: 'border-l-blue-500 bg-blue-50',
+			suggestions: 'border-l-purple-500 bg-purple-50',
 		};
 		return colors[key] || 'border-l-gray-500 bg-gray-50';
 	};
 
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+		<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 			{cards.map((card) => (
 				<div
 					key={card.key}
