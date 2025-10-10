@@ -1450,6 +1450,67 @@ class ApiController extends WP_REST_Controller {
     }
 
     /**
+     * Get suggestions for an analysis.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response
+     */
+    public function get_suggestions( $request ) {
+        $analysis_id = $request->get_param( 'analysis_id' );
+        
+        global $wpdb;
+        $suggestions_table = $wpdb->prefix . 'wegenius_suggestions';
+        
+        // Check if table exists
+        if ( ! $this->table_exists( $suggestions_table ) ) {
+            return rest_ensure_response( [] );
+        }
+        
+        // Get suggestions for this analysis
+        $suggestions = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM $suggestions_table WHERE analysis_id = %d ORDER BY created_at DESC",
+                $analysis_id
+            )
+        );
+        
+        $result = [];
+        foreach ( $suggestions as $suggestion ) {
+            // Format suggestion type for display
+            $type_labels = [
+                'seo' => __( 'SEO Optimization', 'wegenius' ),
+                'on_page_seo' => __( 'On-Page SEO', 'wegenius' ),
+                'readability' => __( 'Readability Improvement', 'wegenius' ),
+                'structure' => __( 'Content Structure', 'wegenius' ),
+                'engagement' => __( 'Engagement Enhancement', 'wegenius' ),
+                'content_gap' => __( 'Content Gap', 'wegenius' ),
+                'new_article' => __( 'New Article Idea', 'wegenius' ),
+            ];
+            
+            $type_display = $type_labels[ $suggestion->suggestion_type ] ?? ucfirst( str_replace( '_', ' ', $suggestion->suggestion_type ) );
+            
+            $result[] = [
+                'id' => $suggestion->id,
+                'analysis_id' => $suggestion->analysis_id,
+                'title' => $suggestion->title ?: __( 'Content Suggestion', 'wegenius' ),
+                'description' => $suggestion->description ?: wp_trim_words( $suggestion->content, 20 ),
+                'content' => $suggestion->content,
+                'suggestion_type' => $suggestion->suggestion_type,
+                'type' => $type_display,
+                'typeKey' => $suggestion->suggestion_type,
+                'priority' => ucfirst( $suggestion->priority ),
+                'priorityKey' => $suggestion->priority,
+                'status' => $suggestion->status,
+                'createdAt' => $suggestion->created_at,
+                'updatedAt' => $suggestion->updated_at,
+            ];
+        }
+        
+        return rest_ensure_response( $result );
+    }
+
+    /**
      * Get idea inbox data.
      *
      * @param array $filters Filter parameters.

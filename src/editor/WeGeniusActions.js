@@ -3,8 +3,9 @@ import { PluginSidebar } from '@wordpress/editor';
 import {
     PanelBody,
     Button,
-    RadioControl,
     Spinner,
+    Panel,
+    PanelRow,
 } from '@wordpress/components';
 import { registerPlugin } from '@wordpress/plugins';
 import { useState, useEffect } from '@wordpress/element';
@@ -17,13 +18,13 @@ if ( window.wegeniusAdmin && window.wegeniusAdmin.nonce ) {
 }
 
 const WeGeniusActionsSidebar = () => {
-    const [ selectedOption, setSelectedOption ] = useState( 'improve' );
     const [ isScanning, setIsScanning ] = useState( false );
     const [ scanResult, setScanResult ] = useState( null );
     const [ scanStatus, setScanStatus ] = useState( null );
     const [ isCheckingStatus, setIsCheckingStatus ] = useState( false );
     const [ isInitialLoading, setIsInitialLoading ] = useState( true );
     const [ allAnalysisTypes, setAllAnalysisTypes ] = useState( {} );
+    const [ scanningType, setScanningType ] = useState( null );
 
     // Get current post data
     const { 
@@ -134,13 +135,14 @@ const WeGeniusActionsSidebar = () => {
         }
     };
 
-    const handleScan = async () => {
+    const handleScan = async ( analysisType ) => {
         if ( ! postId ) {
             console.error( 'No post ID available' );
             return;
         }
 
         setIsScanning( true );
+        setScanningType( analysisType );
         setScanResult( null );
 
         try {
@@ -154,7 +156,7 @@ const WeGeniusActionsSidebar = () => {
                 status: postStatus === 'publish' ? 'published' : ( postStatus || 'draft' ),
                 published_at: new Date().toISOString(),
                 author_name: authorName || '',
-                action_type: selectedOption, // This maps to our radio buttons
+                action_type: analysisType,
                 meta_data: {
                     categories: categories || [],
                     tags: tags || [],
@@ -194,7 +196,44 @@ const WeGeniusActionsSidebar = () => {
             } );
         } finally {
             setIsScanning( false );
+            setScanningType( null );
         }
+    };
+
+    // Helper function to get analysis results for a specific type
+    const getAnalysisResults = ( type ) => {
+        if ( ! scanStatus?.analysis?.results ) return null;
+        
+        switch ( type ) {
+            case 'gaps':
+                return scanStatus.analysis.results.gaps;
+            case 'improve':
+                return scanStatus.analysis.results.improvements;
+            case 'ideas':
+                return scanStatus.analysis.results.ideas;
+            default:
+                return null;
+        }
+    };
+
+    // Helper function to get status for a specific analysis type
+    const getAnalysisStatus = ( type ) => {
+        if ( allAnalysisTypes[ type ] ) {
+            return allAnalysisTypes[ type ].status;
+        }
+        return scanStatus?.analysis?.status || 'unknown';
+    };
+
+    // Helper function to get status icon and color
+    const getStatusConfig = ( status ) => {
+        const configs = {
+            completed: { icon: '✅', color: '#28a745' },
+            processing: { icon: '🔄', color: '#007cba' },
+            pending: { icon: '⏳', color: '#ffc107' },
+            failed: { icon: '❌', color: '#dc3545' },
+            unknown: { icon: '❓', color: '#6c757d' }
+        };
+        return configs[ status ] || configs.unknown;
     };
 
     return (
@@ -204,55 +243,10 @@ const WeGeniusActionsSidebar = () => {
             icon={ 'smiley' }
         >
             <PanelBody>
-                <RadioControl
-                    label={ __( 'Select Analysis Type', 'wegenius' ) }
-                    selected={ selectedOption }
-                    options={ [
-                        { label: __( 'Improve', 'wegenius' ), value: 'improve' },
-                        { label: __( 'Gaps', 'wegenius' ), value: 'gaps' },
-                        { label: __( 'Ideas', 'wegenius' ), value: 'ideas' },
-                    ] }
-                    onChange={ ( value ) => setSelectedOption( value ) }
-                />
-                <div style={{ marginTop: '1rem' }}>
-                    <Button 
-                        variant="primary" 
-                        onClick={ handleScan }
-                        className="wegen-scan-button"
-                        disabled={ isScanning || ! postId }
-                    >
-                        { isScanning ? (
-                            <>
-                                <Spinner />
-                                { __( 'Scanning...', 'wegenius' ) }
-                            </>
-                        ) : (
-                            __( 'Scan', 'wegenius' )
-                        ) }
-                    </Button>
-                    
-                    { postId && (
-                        <Button 
-                            variant="secondary" 
-                            onClick={ checkScanStatus }
-                            disabled={ isCheckingStatus }
-                            style={{ marginLeft: '0.5rem' }}
-                        >
-                            { isCheckingStatus ? (
-                                <>
-                                    <Spinner />
-                                    { __( 'Checking...', 'wegenius' ) }
-                                </>
-                            ) : (
-                                __( 'Check Status', 'wegenius' )
-                            ) }
-                        </Button>
-                    ) }
-                </div>
-
+                {/* Global Status and Controls */}
                 { scanResult && (
                     <div style={{ 
-                        marginTop: '1rem', 
+                        marginBottom: '1rem', 
                         padding: '0.75rem',
                         backgroundColor: scanResult.success ? '#d4edda' : '#f8d7da',
                         border: `1px solid ${ scanResult.success ? '#c3e6cb' : '#f5c6cb' }`,
@@ -271,6 +265,26 @@ const WeGeniusActionsSidebar = () => {
                     </div>
                 ) }
 
+                { postId && (
+                    <PanelRow>
+                        <Button 
+                            variant="secondary" 
+                            onClick={ checkScanStatus }
+                            disabled={ isCheckingStatus }
+                            style={{ width: '100%' }}
+                        >
+                            { isCheckingStatus ? (
+                                <>
+                                    <Spinner />
+                                    { __( 'Checking Status...', 'wegenius' ) }
+                                </>
+                            ) : (
+                                __( 'Check Status', 'wegenius' )
+                            ) }
+                        </Button>
+                    </PanelRow>
+                ) }
+
                 { isInitialLoading && (
                     <div style={{ 
                         marginTop: '1rem', 
@@ -287,219 +301,263 @@ const WeGeniusActionsSidebar = () => {
                     </div>
                 ) }
 
-                { scanStatus && !isInitialLoading && (
-                    <div style={{ 
-                        marginTop: '1rem', 
-                        padding: '0.75rem',
-                        backgroundColor: '#f8f9fa',
-                        border: '1px solid #dee2e6',
-                        borderRadius: '0.25rem'
-                    }}>
-                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>
-                            { __( 'Scan Status', 'wegenius' ) }
-                        </h4>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <span style={{ 
-                                marginRight: '0.5rem',
-                                fontSize: '1.2rem'
+                {/* Gaps Panel */}
+                <Panel title={ __( 'Content Gaps', 'wegenius' ) }>
+                    <PanelRow>
+                        <div style={{ width: '100%' }}>
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                marginBottom: '0.5rem'
                             }}>
-                                { scanStatus.analysis?.status === 'pending' && '⏳' }
-                                { scanStatus.analysis?.status === 'processing' && '🔄' }
-                                { scanStatus.analysis?.status === 'completed' && '✅' }
-                                { scanStatus.analysis?.status === 'failed' && '❌' }
-                                { ! scanStatus.analysis?.status && '❓' }
-                            </span>
-                            <span style={{ 
-                                fontWeight: 'bold',
-                                color: scanStatus.analysis?.status === 'completed' ? '#28a745' :
-                                       scanStatus.analysis?.status === 'failed' ? '#dc3545' :
-                                       scanStatus.analysis?.status === 'processing' ? '#007cba' :
-                                       scanStatus.analysis?.status === 'pending' ? '#ffc107' : '#6c757d'
-                            }}>
-                                { scanStatus.analysis?.status ? 
-                                    scanStatus.analysis.status.charAt(0).toUpperCase() + scanStatus.analysis.status.slice(1) :
-                                    scanStatus.status || __( 'Unknown', 'wegenius' )
-                                }
-                            </span>
-                        </div>
-
-                        { scanStatus.last_analyzed && (
-                            <p style={{ 
-                                margin: '0.25rem 0', 
-                                fontSize: '0.8rem', 
-                                color: '#6c757d' 
-                            }}>
-                                { __( 'Last analyzed:', 'wegenius' ) } { new Date( scanStatus.last_analyzed ).toLocaleString() }
-                            </p>
-                        ) }
-
-                        { scanStatus.analysis?.results && scanStatus.analysis.status === 'completed' && (
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <div style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    marginBottom: '0.75rem' 
-                                }}>
-                                    <h4 style={{ 
-                                        margin: 0, 
-                                        fontSize: '0.9rem', 
-                                        fontWeight: 'bold',
-                                        color: '#1d2327'
-                                    }}>
-                                        { __( 'Analysis results', 'wegenius' ) }
-                                    </h4>
-                                    <span style={{ 
-                                        marginLeft: '0.5rem', 
-                                        fontSize: '0.8rem', 
-                                        color: '#6c757d',
-                                        cursor: 'help'
-                                    }}>
-                                        ❓
-                                    </span>
-                                </div>
-                                
-                                { scanStatus.analysis.results.gaps && (
-                                    <div style={{ marginBottom: '1rem' }}>
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            marginBottom: '0.5rem',
-                                            cursor: 'pointer'
-                                        }}>
-                                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
-                                            <h5 style={{ 
-                                                margin: 0, 
-                                                fontSize: '0.85rem', 
-                                                fontWeight: 'bold',
-                                                color: '#d63384'
-                                            }}>
-                                                { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps?.length || 0 })
-                                            </h5>
-                                        </div>
-                                        
-                                        { scanStatus.analysis.results.gaps.gaps?.map( ( gap, index ) => (
-                                            <div key={ index } style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'flex-start', 
-                                                marginBottom: '0.5rem',
-                                                padding: '0.5rem',
-                                                backgroundColor: '#f8f9fa',
-                                                borderRadius: '0.25rem'
-                                            }}>
-                                                <span style={{ 
-                                                    marginRight: '0.5rem', 
-                                                    marginTop: '0.1rem',
-                                                    fontSize: '0.7rem',
-                                                    color: '#6c757d'
-                                                }}>
-                                                    ●
-                                                </span>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ 
-                                                        fontSize: '0.8rem', 
-                                                        fontWeight: 'bold',
-                                                        color: '#0073aa',
-                                                        textDecoration: 'underline',
-                                                        marginBottom: '0.25rem'
-                                                    }}>
-                                                        { gap.title || gap.type || __( 'Issue', 'wegenius' ) }
-                                                    </div>
-                                                    <div style={{ 
-                                                        fontSize: '0.75rem', 
-                                                        color: '#1d2327',
-                                                        lineHeight: '1.4'
-                                                    }}>
-                                                        { gap.description || __( 'This area needs attention.', 'wegenius' ) }
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) ) }
-                                    </div>
-                                ) }
-
-                                { scanStatus.analysis.results.improvements && (
-                                    <div style={{ marginBottom: '1rem' }}>
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            marginBottom: '0.5rem',
-                                            cursor: 'pointer'
-                                        }}>
-                                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
-                                            <h5 style={{ 
-                                                margin: 0, 
-                                                fontSize: '0.85rem', 
-                                                fontWeight: 'bold',
-                                                color: '#00a32a'
-                                            }}>
-                                                { __( 'Good results', 'wegenius' ) } ({ scanStatus.analysis.results.improvements.length || 0 })
-                                            </h5>
-                                        </div>
-                                        
-                                        { scanStatus.analysis.results.improvements.map( ( improvement, index ) => (
-                                            <div key={ index } style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'flex-start', 
-                                                marginBottom: '0.5rem',
-                                                padding: '0.5rem',
-                                                backgroundColor: '#f0f8f0',
-                                                borderRadius: '0.25rem'
-                                            }}>
-                                                <span style={{ 
-                                                    marginRight: '0.5rem', 
-                                                    marginTop: '0.1rem',
-                                                    fontSize: '0.7rem',
-                                                    color: '#00a32a'
-                                                }}>
-                                                    ●
-                                                </span>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ 
-                                                        fontSize: '0.8rem', 
-                                                        fontWeight: 'bold',
-                                                        color: '#0073aa',
-                                                        textDecoration: 'underline',
-                                                        marginBottom: '0.25rem'
-                                                    }}>
-                                                        { improvement.title || improvement.type || __( 'Good practice', 'wegenius' ) }
-                                                    </div>
-                                                    <div style={{ 
-                                                        fontSize: '0.75rem', 
-                                                        color: '#1d2327',
-                                                        lineHeight: '1.4'
-                                                    }}>
-                                                        { improvement.description || __( 'Well done!', 'wegenius' ) }
-                                                    </div>
-                                                </div>
-                                                <span style={{ 
-                                                    fontSize: '0.7rem',
-                                                    color: '#6c757d',
-                                                    cursor: 'pointer'
-                                                }}>
-                                                    👁
-                                                </span>
-                                            </div>
-                                        ) ) }
-                                    </div>
-                                ) }
-                            </div>
-                        ) }
-
-                        { scanStatus.analysis?.scores && scanStatus.analysis.status === 'completed' && (
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <h4 style={{ 
-                                    margin: '0 0 0.75rem 0', 
-                                    fontSize: '0.9rem', 
+                                <span style={{ 
                                     fontWeight: 'bold',
-                                    color: '#1d2327'
+                                    fontSize: '0.9rem'
                                 }}>
-                                    { __( 'Scores', 'wegenius' ) }
+                                    { __( 'Content Gap Analysis', 'wegenius' ) }
+                                </span>
+                                <span style={{ 
+                                    fontSize: '0.8rem',
+                                    color: getStatusConfig( getAnalysisStatus( 'gaps' ) ).color
+                                }}>
+                                    { getStatusConfig( getAnalysisStatus( 'gaps' ) ).icon }
+                                </span>
+                            </div>
+                            
+                            <Button 
+                                variant="primary" 
+                                onClick={ () => handleScan( 'gaps' ) }
+                                disabled={ isScanning || ! postId }
+                                style={{ width: '100%' }}
+                            >
+                                { isScanning && scanningType === 'gaps' ? (
+                                    <>
+                                        <Spinner />
+                                        { __( 'Analyzing Gaps...', 'wegenius' ) }
+                                    </>
+                                ) : (
+                                    __( 'Analyze Content Gaps', 'wegenius' )
+                                ) }
+                            </Button>
+                        </div>
+                    </PanelRow>
+
+                    { getAnalysisResults( 'gaps' ) && (
+                        <PanelRow>
+                            <div style={{ width: '100%' }}>
+                                <h4 style={{ 
+                                    margin: '0 0 0.5rem 0', 
+                                    fontSize: '0.85rem',
+                                    color: '#d63384'
+                                }}>
+                                    { __( 'Identified Gaps', 'wegenius' ) } ({ getAnalysisResults( 'gaps' ).gaps?.length || 0 })
                                 </h4>
                                 
+                                { getAnalysisResults( 'gaps' ).gaps?.map( ( gap, index ) => (
+                                    <div key={ index } style={{ 
+                                        marginBottom: '0.5rem',
+                                        padding: '0.5rem',
+                                        backgroundColor: '#f8f9fa',
+                                        border: '1px solid #dee2e6',
+                                        borderRadius: '0.25rem'
+                                    }}>
+                                        <div style={{ 
+                                            fontSize: '0.8rem', 
+                                            fontWeight: 'bold',
+                                            color: '#0073aa',
+                                            marginBottom: '0.25rem'
+                                        }}>
+                                            { gap.title || gap.type || __( 'Content Gap', 'wegenius' ) }
+                                        </div>
+                                        <div style={{ 
+                                            fontSize: '0.75rem', 
+                                            color: '#1d2327',
+                                            lineHeight: '1.4'
+                                        }}>
+                                            { gap.description || __( 'This area needs attention.', 'wegenius' ) }
+                                        </div>
+                                    </div>
+                                ) ) }
+                            </div>
+                        </PanelRow>
+                    ) }
+                </Panel>
+
+                {/* Improve Panel */}
+                <Panel title={ __( 'Content Improvements', 'wegenius' ) }>
+                    <PanelRow>
+                        <div style={{ width: '100%' }}>
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                marginBottom: '0.5rem'
+                            }}>
+                                <span style={{ 
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem'
+                                }}>
+                                    { __( 'Content Improvement Analysis', 'wegenius' ) }
+                                </span>
+                                <span style={{ 
+                                    fontSize: '0.8rem',
+                                    color: getStatusConfig( getAnalysisStatus( 'improve' ) ).color
+                                }}>
+                                    { getStatusConfig( getAnalysisStatus( 'improve' ) ).icon }
+                                </span>
+                            </div>
+                            
+                            <Button 
+                                variant="primary" 
+                                onClick={ () => handleScan( 'improve' ) }
+                                disabled={ isScanning || ! postId }
+                                style={{ width: '100%' }}
+                            >
+                                { isScanning && scanningType === 'improve' ? (
+                                    <>
+                                        <Spinner />
+                                        { __( 'Analyzing Improvements...', 'wegenius' ) }
+                                    </>
+                                ) : (
+                                    __( 'Analyze Improvements', 'wegenius' )
+                                ) }
+                            </Button>
+                        </div>
+                    </PanelRow>
+
+                    { getAnalysisResults( 'improve' ) && (
+                        <PanelRow>
+                            <div style={{ width: '100%' }}>
+                                <h4 style={{ 
+                                    margin: '0 0 0.5rem 0', 
+                                    fontSize: '0.85rem',
+                                    color: '#00a32a'
+                                }}>
+                                    { __( 'Improvement Suggestions', 'wegenius' ) } ({ getAnalysisResults( 'improve' ).length || 0 })
+                                </h4>
+                                
+                                { getAnalysisResults( 'improve' ).map( ( improvement, index ) => (
+                                    <div key={ index } style={{ 
+                                        marginBottom: '0.5rem',
+                                        padding: '0.5rem',
+                                        backgroundColor: '#f0f8f0',
+                                        border: '1px solid #c3e6cb',
+                                        borderRadius: '0.25rem'
+                                    }}>
+                                        <div style={{ 
+                                            fontSize: '0.8rem', 
+                                            fontWeight: 'bold',
+                                            color: '#0073aa',
+                                            marginBottom: '0.25rem'
+                                        }}>
+                                            { improvement.title || improvement.type || __( 'Improvement', 'wegenius' ) }
+                                        </div>
+                                        <div style={{ 
+                                            fontSize: '0.75rem', 
+                                            color: '#1d2327',
+                                            lineHeight: '1.4'
+                                        }}>
+                                            { improvement.description || __( 'Good practice identified.', 'wegenius' ) }
+                                        </div>
+                                    </div>
+                                ) ) }
+                            </div>
+                        </PanelRow>
+                    ) }
+                </Panel>
+
+                {/* Ideas Panel */}
+                <Panel title={ __( 'Content Ideas', 'wegenius' ) }>
+                    <PanelRow>
+                        <div style={{ width: '100%' }}>
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                marginBottom: '0.5rem'
+                            }}>
+                                <span style={{ 
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem'
+                                }}>
+                                    { __( 'Content Ideas Analysis', 'wegenius' ) }
+                                </span>
+                                <span style={{ 
+                                    fontSize: '0.8rem',
+                                    color: getStatusConfig( getAnalysisStatus( 'ideas' ) ).color
+                                }}>
+                                    { getStatusConfig( getAnalysisStatus( 'ideas' ) ).icon }
+                                </span>
+                            </div>
+                            
+                            <Button 
+                                variant="primary" 
+                                onClick={ () => handleScan( 'ideas' ) }
+                                disabled={ isScanning || ! postId }
+                                style={{ width: '100%' }}
+                            >
+                                { isScanning && scanningType === 'ideas' ? (
+                                    <>
+                                        <Spinner />
+                                        { __( 'Generating Ideas...', 'wegenius' ) }
+                                    </>
+                                ) : (
+                                    __( 'Generate Content Ideas', 'wegenius' )
+                                ) }
+                            </Button>
+                        </div>
+                    </PanelRow>
+
+                    { getAnalysisResults( 'ideas' ) && (
+                        <PanelRow>
+                            <div style={{ width: '100%' }}>
+                                <h4 style={{ 
+                                    margin: '0 0 0.5rem 0', 
+                                    fontSize: '0.85rem',
+                                    color: '#6f42c1'
+                                }}>
+                                    { __( 'Content Ideas', 'wegenius' ) } ({ getAnalysisResults( 'ideas' ).length || 0 })
+                                </h4>
+                                
+                                { getAnalysisResults( 'ideas' ).map( ( idea, index ) => (
+                                    <div key={ index } style={{ 
+                                        marginBottom: '0.5rem',
+                                        padding: '0.5rem',
+                                        backgroundColor: '#f8f5ff',
+                                        border: '1px solid #d1c4e9',
+                                        borderRadius: '0.25rem'
+                                    }}>
+                                        <div style={{ 
+                                            fontSize: '0.8rem', 
+                                            fontWeight: 'bold',
+                                            color: '#0073aa',
+                                            marginBottom: '0.25rem'
+                                        }}>
+                                            { idea.title || idea.type || __( 'Content Idea', 'wegenius' ) }
+                                        </div>
+                                        <div style={{ 
+                                            fontSize: '0.75rem', 
+                                            color: '#1d2327',
+                                            lineHeight: '1.4'
+                                        }}>
+                                            { idea.description || __( 'New content opportunity identified.', 'wegenius' ) }
+                                        </div>
+                                    </div>
+                                ) ) }
+                            </div>
+                        </PanelRow>
+                    ) }
+                </Panel>
+
+                {/* Scores Panel */}
+                { scanStatus?.analysis?.scores && scanStatus.analysis.status === 'completed' && (
+                    <Panel title={ __( 'Analysis Scores', 'wegenius' ) }>
+                        <PanelRow>
+                            <div style={{ width: '100%' }}>
                                 <div style={{ 
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
                                     gap: '0.5rem'
                                 }}>
                                     { Object.entries( scanStatus.analysis.scores ).map( ( [ key, value ] ) => {
@@ -523,14 +581,14 @@ const WeGeniusActionsSidebar = () => {
                                         
                                         return (
                                             <div key={ key } style={{ 
-                                                padding: '0.75rem',
+                                                padding: '0.5rem',
                                                 backgroundColor: '#ffffff',
                                                 border: '1px solid #e9ecef',
                                                 borderRadius: '0.25rem',
                                                 textAlign: 'center'
                                             }}>
                                                 <div style={{ 
-                                                    fontSize: '1.5rem',
+                                                    fontSize: '1.2rem',
                                                     fontWeight: 'bold',
                                                     color: getScoreColor( score ),
                                                     marginBottom: '0.25rem'
@@ -549,87 +607,8 @@ const WeGeniusActionsSidebar = () => {
                                     } ) }
                                 </div>
                             </div>
-                        ) }
-                    </div>
-                ) }
-
-                {/* All Analysis Types Section */}
-                { Object.keys( allAnalysisTypes ).length > 0 && (
-                    <div style={{ 
-                        marginTop: '1rem', 
-                        padding: '0.75rem',
-                        backgroundColor: '#f8f9fa',
-                        border: '1px solid #dee2e6',
-                        borderRadius: '0.25rem'
-                    }}>
-                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>
-                            { __( 'All Analysis Types', 'wegenius' ) }
-                        </h4>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            { Object.entries( allAnalysisTypes ).map( ( [ type, data ] ) => {
-                                const getStatusIcon = ( status ) => {
-                                    switch ( status ) {
-                                        case 'completed': return '✅';
-                                        case 'processing': return '🔄';
-                                        case 'pending': return '⏳';
-                                        case 'failed': return '❌';
-                                        default: return '❓';
-                                    }
-                                };
-
-                                const getStatusColor = ( status ) => {
-                                    switch ( status ) {
-                                        case 'completed': return '#28a745';
-                                        case 'processing': return '#007cba';
-                                        case 'pending': return '#ffc107';
-                                        case 'failed': return '#dc3545';
-                                        default: return '#6c757d';
-                                    }
-                                };
-
-                                const getTypeLabel = ( type ) => {
-                                    const labels = {
-                                        improve: __( 'Improve', 'wegenius' ),
-                                        gaps: __( 'Gaps', 'wegenius' ),
-                                        ideas: __( 'Ideas', 'wegenius' )
-                                    };
-                                    return labels[ type ] || type.charAt( 0 ).toUpperCase() + type.slice( 1 );
-                                };
-
-                                return (
-                                    <div key={ type } style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'space-between',
-                                        padding: '0.5rem',
-                                        backgroundColor: '#ffffff',
-                                        border: '1px solid #e9ecef',
-                                        borderRadius: '0.25rem'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                                            <span style={{ marginRight: '0.5rem', fontSize: '1rem' }}>
-                                                { getStatusIcon( data.status ) }
-                                            </span>
-                                            <span style={{ 
-                                                fontWeight: 'bold',
-                                                fontSize: '0.85rem'
-                                            }}>
-                                                { getTypeLabel( type ) }
-                                            </span>
-                                        </div>
-                                        <div style={{ 
-                                            fontSize: '0.75rem',
-                                            color: getStatusColor( data.status ),
-                                            fontWeight: '500'
-                                        }}>
-                                            { data.status.charAt( 0 ).toUpperCase() + data.status.slice( 1 ) }
-                                        </div>
-                                    </div>
-                                );
-                            } ) }
-                        </div>
-                    </div>
+                        </PanelRow>
+                    </Panel>
                 ) }
             </PanelBody>
         </PluginSidebar>

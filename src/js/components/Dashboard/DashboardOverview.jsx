@@ -3,7 +3,6 @@ import { __ } from '@wordpress/i18n';
 import { Card, CardBody, CardHeader } from '@wordpress/components';
 import apiFetch from '@wordpress/api-fetch';
 import { StatusCards } from './StatusCards';
-import { ThisWeekSection } from './ThisWeekSection';
 import { RecentAnalysisTable } from './RecentAnalysisTable';
 import { IdeaInboxTable } from './IdeaInboxTable';
 
@@ -111,11 +110,6 @@ export const DashboardOverview = () => {
 				<div className="space-y-8">
 					<StatusCards
 						data={dashboardData.overview}
-						loading={dashboardData.loading}
-					/>
-
-					<ThisWeekSection
-						data={dashboardData.thisWeek}
 						loading={dashboardData.loading}
 					/>
 

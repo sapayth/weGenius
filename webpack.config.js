@@ -10,14 +10,9 @@ module.exports = {
 		'editor': './src/editor/WeGeniusActions.js',
 	},
 	output: {
-		path: path.resolve(__dirname, 'assets/js'),
-		filename: '[name].js',
+		path: path.resolve(__dirname, 'assets'),
+		filename: 'js/[name].js',
 		clean: true,
-	},
-	watchOptions: {
-		ignored: /node_modules/,
-		aggregateTimeout: 300,
-		poll: 1000,
 	},
 	module: {
 		rules: [
@@ -55,7 +50,7 @@ module.exports = {
 	},
 	plugins: [
 		new MiniCssExtractPlugin({
-			filename: '../css/[name].css',
+			filename: 'css/[name].css',
 		}),
 		new DependencyExtractionWebpackPlugin({
 			outputFilename: '[name].asset.php',
