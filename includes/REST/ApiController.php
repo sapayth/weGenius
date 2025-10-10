@@ -277,6 +277,25 @@ class ApiController {
                 'permission_callback' => [ $this, 'check_permissions' ],
             ]
         );
+        // Error logs endpoints
+        register_rest_route(
+            self::NAMESPACE,
+            '/error-logs',
+            [
+                'methods'             => 'GET',
+                'callback'            => [ $this, 'get_error_logs' ],
+                'permission_callback' => [ $this, 'check_permissions' ],
+            ]
+        );
+        register_rest_route(
+            self::NAMESPACE,
+            '/error-logs/(?P<error_id>\d+)/retry',
+            [
+                'methods'             => 'POST',
+                'callback'            => [ $this, 'retry_error_log' ],
+                'permission_callback' => [ $this, 'check_permissions' ],
+            ]
+        );
     }
 
     /**
@@ -890,11 +909,33 @@ class ApiController {
         ]
         );
         if ( is_wp_error( $response ) ) {
+            // Log the error to database
+            $this->log_external_api_error( [
+                'analysis_id' => null,
+                'post_id' => $data['wp_post_id'] ?? null,
+                'api_endpoint' => $api_endpoint . '/articles/submit',
+                'request_data' => $api_data,
+                'response_data' => null,
+                'error_code' => 'wp_remote_error',
+                'error_message' => $response->get_error_message(),
+                'http_status_code' => null,
+            ] );
             return $response;
         }
         $body        = wp_remote_retrieve_body( $response );
         $status_code = wp_remote_retrieve_response_code( $response );
         if ( $status_code !== 200 ) {
+            // Log the error to database
+            $this->log_external_api_error( [
+                'analysis_id' => null,
+                'post_id' => $data['wp_post_id'] ?? null,
+                'api_endpoint' => $api_endpoint . '/articles/submit',
+                'request_data' => $api_data,
+                'response_data' => $body,
+                'error_code' => 'http_error',
+                'error_message' => sprintf( __( 'API request failed with status %d', 'wegenius' ), $status_code ),
+                'http_status_code' => $status_code,
+            ] );
             return new \WP_Error(
                 'api_request_failed',
                 sprintf( __( 'API request failed with status %d', 'wegenius' ), $status_code ),
@@ -903,6 +944,18 @@ class ApiController {
         }
 
         return json_decode( $body, true );
+    }
+
+    /**
+     * Log external API error to database.
+     *
+     * @param array $error_data Error data to log.
+     *
+     * @return int|false Error log ID or false on failure.
+     */
+    private function log_external_api_error( $error_data ) {
+        $database = \WeGenius\Database\Database::instance();
+        return $database->log_api_error( $error_data );
     }
 
     /**
@@ -1355,5 +1408,87 @@ class ApiController {
                 'action_type' => $data['action_type'] ?? 'improve',
             ]
         );
+    }
+
+    /**
+     * Get error logs.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response
+     */
+    public function get_error_logs( $request ) {
+        $database = \WeGenius\Database\Database::instance();
+        
+        // Get query parameters
+        $filters = [
+            'analysis_id' => $request->get_param( 'analysis_id' ),
+            'post_id' => $request->get_param( 'post_id' ),
+            'error_code' => $request->get_param( 'error_code' ),
+            'status' => $request->get_param( 'status' ),
+            'date_from' => $request->get_param( 'date_from' ),
+            'date_to' => $request->get_param( 'date_to' ),
+            'limit' => $request->get_param( 'limit' ) ?: 50,
+            'order' => $request->get_param( 'order' ) ?: 'created_at DESC',
+        ];
+        
+        // Remove empty filters
+        $filters = array_filter( $filters, function( $value ) {
+            return ! empty( $value );
+        });
+        
+        $error_logs = $database->get_api_error_logs( $filters );
+        
+        return rest_ensure_response( $error_logs );
+    }
+
+    /**
+     * Retry error log.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function retry_error_log( $request ) {
+        $error_id = $request->get_param( 'error_id' );
+        $database = \WeGenius\Database\Database::instance();
+        
+        // Get the error log
+        $error_logs = $database->get_api_error_logs( [ 'id' => $error_id, 'limit' => 1 ] );
+        
+        if ( empty( $error_logs ) ) {
+            return new \WP_Error(
+                'error_log_not_found',
+                __( 'Error log not found.', 'wegenius' ),
+                [ 'status' => 404 ]
+            );
+        }
+        
+        $error_log = $error_logs[0];
+        
+        // Update retry information
+        $retry_data = [
+            'retry_count' => $error_log->retry_count + 1,
+            'last_retry_at' => current_time( 'mysql' ),
+            'status' => 'retrying',
+        ];
+        
+        $updated = $database->update_error_log_retry( $error_id, $retry_data );
+        
+        if ( $updated ) {
+            return rest_ensure_response(
+                [
+                    'success' => true,
+                    'message' => __( 'Error log retry initiated.', 'wegenius' ),
+                    'retry_count' => $retry_data['retry_count'],
+                ]
+            );
+        } else {
+            return new \WP_Error(
+                'retry_update_failed',
+                __( 'Failed to update retry information.', 'wegenius' ),
+                [ 'status' => 500 ]
+            );
+        }
     }
 }
