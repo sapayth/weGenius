@@ -104,10 +104,8 @@ const WeGeniusActionsSidebar = () => {
                 method: 'GET',
             } );
 
-            console.log( 'Scan status response:', response );
             setScanStatus( response );
         } catch ( error ) {
-            console.error( 'Error checking scan status:', error );
             setScanStatus( null );
         } finally {
             if ( isInitialLoad ) {
@@ -120,7 +118,6 @@ const WeGeniusActionsSidebar = () => {
 
     const handleScan = async () => {
         if ( ! postId ) {
-            console.error( 'No post ID available' );
             return;
         }
 
@@ -166,7 +163,6 @@ const WeGeniusActionsSidebar = () => {
             }, 1000 );
 
         } catch ( error ) {
-            console.error( 'Scan error:', error );
             setScanResult( {
                 success: false,
                 error: error.message || __( 'Failed to submit for analysis', 'wegenius' )
@@ -543,19 +539,22 @@ const WeGeniusActionsSidebar = () => {
 
             <PanelBody title={ __( 'Improve', 'wegenius' ) }>
                 { console.log( 'Improve panel - scanStatus:', scanStatus ) }
-                { scanStatus?.analysis?.results?.improvements && scanStatus.status === 'completed' && (
+                { console.log( 'Improve panel - analysis results:', scanStatus?.analysis?.results ) }
+                { console.log( 'Improve panel - analysis type:', scanStatus?.analysis?.analysis_type ) }
+                { console.log( 'Improve panel - improvements:', scanStatus?.analysis?.results?.improve?.improvements ) }
+                { scanStatus?.analysis?.results?.improve?.improvements && scanStatus.status === 'completed' && (
                     <div>
-                        { console.log( 'Rendering improvements:', scanStatus.analysis.results.improvements ) }
+                        { console.log( 'Rendering improvements:', scanStatus.analysis.results.improve.improvements ) }
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
                             fontSize: '0.9rem', 
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Improvements', 'wegenius' ) } ({ scanStatus.analysis.results.improvements.length || 0 })
+                            { __( 'Improvements', 'wegenius' ) } ({ scanStatus.analysis.results.improve.improvements.length || 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results.improvements.map( ( improvement, index ) => (
+                        { scanStatus.analysis.results.improve.improvements.map( ( improvement, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 
@@ -598,19 +597,22 @@ const WeGeniusActionsSidebar = () => {
             
             <PanelBody title={ __( 'Gaps', 'wegenius' ) }>
                 { console.log( 'Gaps panel - scanStatus:', scanStatus ) }
-                { scanStatus?.analysis?.results?.gaps && scanStatus.status === 'completed' && (
+                { console.log( 'Gaps panel - analysis results:', scanStatus?.analysis?.results ) }
+                { console.log( 'Gaps panel - analysis type:', scanStatus?.analysis?.analysis_type ) }
+                { console.log( 'Gaps panel - gaps:', scanStatus?.analysis?.results?.gaps?.gaps ) }
+                { scanStatus?.analysis?.results?.gaps?.gaps && scanStatus.status === 'completed' && (
                     <div>
-                        { console.log( 'Rendering gaps:', scanStatus.analysis.results.gaps ) }
+                        { console.log( 'Rendering gaps:', scanStatus.analysis.results.gaps.gaps ) }
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
                             fontSize: '0.9rem', 
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps?.length || 0 })
+                            { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps.length || 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results.gaps.gaps?.map( ( gap, index ) => (
+                        { scanStatus.analysis.results.gaps.gaps.map( ( gap, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 
@@ -652,20 +654,18 @@ const WeGeniusActionsSidebar = () => {
             </PanelBody>
             
             <PanelBody title={ __( 'Ideas', 'wegenius' ) }>
-                { console.log( 'Ideas panel - scanStatus:', scanStatus ) }
-                { scanStatus?.analysis?.results?.ideas && scanStatus.status === 'completed' && (
+                { scanStatus?.analysis?.results?.[scanStatus?.analysis?.analysis_type]?.ideas && scanStatus.status === 'completed' && (
                     <div>
-                        { console.log( 'Rendering ideas:', scanStatus.analysis.results.ideas ) }
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
                             fontSize: '0.9rem', 
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Ideas', 'wegenius' ) } ({ scanStatus.analysis.results.ideas.length || 0 })
+                            { __( 'Ideas', 'wegenius' ) } ({ scanStatus.analysis.results[scanStatus.analysis.analysis_type].ideas.length || 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results.ideas.map( ( idea, index ) => (
+                        { scanStatus.analysis.results[scanStatus.analysis.analysis_type].ideas.map( ( idea, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 

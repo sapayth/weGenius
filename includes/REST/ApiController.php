@@ -1290,9 +1290,9 @@ class ApiController extends WP_REST_Controller {
             ];
         }
         
-        // Get counts by status with better filtering
+        // Get counts by status with better filtering - count distinct articles
         $analyzed = $wpdb->get_var(
-            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'completed'"
+            "SELECT COUNT(DISTINCT article_id) FROM $analyses_table WHERE status = 'completed'"
         );
         
         // Count articles that have been improved/generated
@@ -1312,17 +1312,17 @@ class ApiController extends WP_REST_Controller {
             );
         }
         
-        // Get additional statistics
+        // Get additional statistics - count distinct articles for each status
         $pending = $wpdb->get_var(
-            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'pending'"
+            "SELECT COUNT(DISTINCT article_id) FROM $analyses_table WHERE status = 'pending'"
         );
         
         $processing = $wpdb->get_var(
-            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'processing'"
+            "SELECT COUNT(DISTINCT article_id) FROM $analyses_table WHERE status = 'processing'"
         );
         
         $failed = $wpdb->get_var(
-            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'failed'"
+            "SELECT COUNT(DISTINCT article_id) FROM $analyses_table WHERE status = 'failed'"
         );
         
         return [
