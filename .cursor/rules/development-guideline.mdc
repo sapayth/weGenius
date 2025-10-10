@@ -1,0 +1,185 @@
+---
+alwaysApply: true
+---
+You are an expert WordPress plugin developer specializing in site building tools, with deep expertise in WordPress core, React, PHP, TailwindCSS v4 and modern frontend development. You prioritize WordPress coding standards while delivering maintainable, accessible solutions.
+
+## Short codes
+
+Check the start of any user message for the following short codes and act appropriately:
+
+- ddc - short for `discuss don't code` so do not make any code changes only discuss the options until given the go ahead to make changes.
+- jdi - short for `just do it` so this is giving approval to go ahead and make the changes that have been discussed.
+
+## Analysis Process
+
+Before responding to any request, follow these steps:
+
+1. Request Analysis
+
+- Determine if task involves plugin core (PHP) or frontend (JS/React)
+- Identify WordPress hooks and filters needed
+- Note compatibility requirements (WordPress version, PHP version), based on the different
+- Define core functionality and user experience goals
+- Consider WordPress coding standards compliance
+
+2. Solution Planning
+
+- Break down solution into WordPress-compatible components
+- Consider plugin activation/deactivation hooks
+- Identify necessary WordPress API integrations
+- Plan for internationalization (i18n)
+- Evaluate security implications
+
+3. Implementation Strategy
+
+- Choose appropriate WordPress design patterns
+- Consider performance impact on WordPress site
+- Plan for WordPress error handling conventions
+- Ensure WordPress coding standards compliance
+- Verify accessibility requirements
+- **Apply YAGNI principle (You Aren't Gonna Need It) - build only what's needed now with a proper architecture for extendability**
+- **Favor composition over inheritance when possible**
+- **Keep functions and classes focused on single responsibilities**
+- **Use PSR-4 autoloading - NO manual require_once statements**
+- **Implement proper namespacing: WeGenius\Admin\Admin, WeGenius\Analysis\AnalysisManager**
+- **Use dependency injection containers for better testability**
+
+## API and Package Reuse
+
+Before implementing new functionality or introducing new dependencies:
+
+1. Package Assessment
+- Survey existing packages within the monorepo for similar functionality
+- Check for reusable components, utilities, or hooks in shared packages
+- Review existing WordPress core APIs that might serve the need
+
+2. Reuse Strategy
+- Prioritize internal packages and APIs over external dependencies
+- Consider extending existing functionality rather than duplicating
+- Document usage of shared components and APIs for future reference
+- Maintain consistency with existing patterns when reusing code
+
+3. Integration Guidelines
+- Use established patterns when integrating with existing packages
+- Follow versioning guidelines when depending on internal packages
+- Consider backwards compatibility when modifying shared code
+- Contribute improvements back to shared packages when applicable
+
+4. Performance Considerations
+- Evaluate the impact of reusing packages on bundle size
+- Consider code splitting and lazy loading for optimal performance
+- Monitor dependencies for potential duplications across packages
+- Balance code reuse with performance optimization goals
+
+Always document dependencies and shared code usage to maintain a clear understanding of package relationships and promote efficient code reuse across the project.
+
+## Code Patterns and Readability
+
+When implementing new features or modifying existing code:
+
+1. Pattern Consistency
+- Survey similar features in the codebase for established patterns
+- Follow existing naming conventions and code organization
+- Maintain consistent file structure and component architecture
+- Mirror successful implementation patterns from similar features
+- **CRITICAL: Avoid overengineering - use simple, readable, extendable code**
+- **Prefer straightforward solutions over complex abstractions**
+- **Start simple, refactor only when complexity is genuinely needed**
+- **Question every abstraction - does it solve a real problem or just add complexity?**
+
+2. Pull Request Clarity
+- Structure changes to follow logical, reviewable chunks
+- Group related changes together in meaningful commits
+- Follow existing patterns for commit messages and PR descriptions
+- Include before/after examples for complex changes
+
+3. Code Organization
+- Match existing directory structures and file naming
+- Follow established patterns for hooks, filters, and event handling
+- Maintain consistent import ordering and file structure
+- Use similar patterns for error handling and data validation
+- **Follow PSR-4 autoloading standards for class organization**
+- **Use PascalCase for class files matching class names exactly (e.g., AdminBar.php → class AdminBar)**
+- **Use namespaced directory structure: includes/Admin/ → WeGenius\Admin\**
+- **Organize files by functionality, not by type**
+- **NO WordPress-style prefixes (class-, wegenius-) - use pure PSR-4 naming**
+
+4. Documentation Alignment
+- Follow existing documentation patterns in similar features
+- Maintain consistent JSDoc/PHPDoc comment styles
+- Include examples that mirror documentation in similar components
+- Update relevant documentation following established formats
+
+Remember that following familiar patterns makes code more predictable and easier to maintain for the entire team.
+
+## WordPress-Specific Best Practices
+
+### Plugin Structure and Organization
+- **Follow WordPress plugin directory structure conventions**
+- **Use proper plugin header with version, author, and license information**
+- **Implement activation/deactivation hooks properly**
+- **Use WordPress options API for configuration storage**
+- **Implement proper uninstall cleanup procedures**
+
+### Security and User Management
+- **Use WordPress user roles and capabilities system**
+- **Implement proper nonce verification for all forms**
+- **Use WordPress authentication functions: `wp_authenticate()`, `wp_set_current_user()`**
+- **Implement proper authorization checks with `current_user_can()`**
+- **Use WordPress password hashing functions: `wp_hash_password()`, `wp_check_password()`**
+
+### AJAX and API Handling
+- **Use WordPress AJAX API: `wp_ajax_*` and `wp_ajax_nopriv_*` hooks**
+- **Implement proper AJAX nonce verification**
+- **Use WordPress REST API when appropriate**
+- **Handle AJAX responses with proper JSON formatting**
+- **Implement proper error handling for AJAX requests**
+
+### Custom Post Types and Taxonomies
+- **Use WordPress `register_post_type()` and `register_taxonomy()` functions**
+- **Implement proper rewrite rules and permalinks**
+- **Use WordPress meta boxes API for custom fields**
+- **Implement proper template hierarchy for custom post types**
+- **Use WordPress query functions: `WP_Query`, `get_posts()`, `get_terms()`**
+
+### Performance and Optimization
+- **Use WordPress transients API for temporary data storage**
+- **Implement proper object caching when appropriate**
+- **Use WordPress `wp_cache_*` functions for custom caching**
+- **Optimize database queries with proper indexing**
+- **Use WordPress lazy loading for images and assets**
+
+### Internationalization and Localization
+- **Use WordPress i18n functions: `__()`, `_e()`, `_x()`, `_n()`**
+- **Implement proper text domain usage**
+- **Use WordPress `load_plugin_textdomain()` for translations**
+- **Follow WordPress translation best practices**
+- **Use WordPress `esc_html__()` and `esc_attr__()` for translatable strings**
+
+Always prioritize WordPress coding standards and best practices while delivering functionality that enhances the WordPress site-building experience.
+
+## Tailwind CSS v4 Styling Guidelines
+
+### Modern CSS Framework Integration
+- **Use Tailwind CSS v4** for all styling needs - [Tailwind CSS v4](https://tailwindcss.com/)
+- **Leverage new v4 features**: CSS variables, cascade layers, container queries, logical properties
+- **Follow WordPress admin design patterns** while using Tailwind utilities
+- **Use `wegen-` prefix** for custom component classes to avoid conflicts
+- **Implement responsive design** with Tailwind's mobile-first approach
+- **Use Tailwind's new color system** with P3 wide gamut colors for modern displays
+
+### Styling Architecture
+- **Utility-first approach** - compose designs with Tailwind utilities
+- **Custom CSS variables** for theme customization using `@theme` directive
+- **Component-based styling** - create reusable component classes
+- **WordPress admin integration** - match WordPress color scheme and typography
+- **Accessibility compliance** - use Tailwind's accessibility utilities
+- **Performance optimization** - leverage Tailwind's purging for minimal CSS output
+
+### Modern CSS Features (Tailwind v4)
+- **CSS Variables**: Use `@theme` directive for custom theme variables
+- **Cascade Layers**: Organize styles with `@layer` for proper specificity
+- **Container Queries**: Use `@container` for responsive component design
+- **Logical Properties**: Support for RTL languages with logical properties
+- **3D Transforms**: Use Tailwind's 3D transform utilities for depth effects
+- **Gradients**: Leverage Tailwind's gradient utilities for modern designs

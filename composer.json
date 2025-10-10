@@ -1,0 +1,47 @@
+{
+    "name": "wegenius/wegenius-plugin",
+    "description": "AI-powered content analysis and optimization plugin for WordPress",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "weGenius Team",
+            "email": "safayet.qubee@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "woocommerce/action-scheduler": "^3.5"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.7",
+        "wp-coding-standards/wpcs": "^2.3",
+        "phpcompatibility/phpcompatibility-wp": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "WeGenius\\": "includes/"
+        }
+    },
+    "scripts": {
+        "phpcs": "phpcs --standard=phpcs.ruleset.xml",
+        "phpcbf": "phpcbf --standard=phpcs.ruleset.xml",
+        "test": "phpunit",
+        "install-codestandards": "Dealerdirect\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\Plugin::run",
+        "post-install-cmd": [
+            "@install-codestandards"
+        ],
+        "post-update-cmd": [
+            "@install-codestandards"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

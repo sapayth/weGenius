@@ -1,0 +1,130 @@
+---
+alwaysApply: true
+---
+- Follow WordPress PHP Coding Standards
+- Use proper WordPress prefix for functions and classes
+- Implement WordPress nonce verification
+- Follow WordPress database operations best practices
+- Structure plugin hooks logically
+
+## Object-Oriented Programming (OOP) Guidelines
+
+- **Prefer OOP over procedural code when it adds clear value**
+- **Use classes for related functionality that benefits from encapsulation**
+- **Keep classes small and focused on single responsibility**
+- **Use dependency injection for better testability and flexibility**
+- **Implement interfaces for contracts between components**
+- **Use abstract classes sparingly - prefer composition over inheritance**
+- **Don't force OOP where simple functions would suffice**
+- **Follow PSR-4 autoloading standards for class organization**
+- **Use type hints and return types for better code clarity**
+- **Implement proper error handling with exceptions when appropriate**
+
+## PSR-4 Autoloading and Namespace Standards
+
+- **File naming: Class name = File name exactly (AdminBar.php → class AdminBar)**
+- **NO WordPress-style prefixes (class-, wegenius-) - use pure PSR-4 naming**
+- **Namespace structure: WeGenius\Admin\Admin, WeGenius\Analysis\AnalysisManager**
+- **Directory structure: includes/Admin/Admin.php → WeGenius\Admin\Admin**
+- **NO manual require_once statements - let PSR-4 autoloader handle everything**
+- **Use proper namespace declarations in all class files**
+- **Follow PSR-4 directory-to-namespace mapping exactly**
+
+## Code Simplicity Principles
+
+- **Start with the simplest solution that works**
+- **Avoid premature optimization and over-abstraction**
+- **Use WordPress hooks and filters instead of complex event systems**
+- **Prefer WordPress core functions over custom implementations**
+- **Keep functions under 50 lines when possible**
+- **Use meaningful variable and function names**
+- **Write code that reads like well-written prose**
+
+## Modern PHP Features (PHP 7.4+)
+
+- **Use typed properties when they add clarity**
+- **Leverage arrow functions for simple closures**
+- **Use null coalescing assignment operator (??=) when appropriate**
+- **Utilize array spread operator (...) for array merging**
+- **Use match expressions instead of switch when suitable**
+- **Implement proper return type declarations**
+- **Use property promotion in constructors when beneficial**
+
+## Class Structure and Organization
+
+- **Use dependency injection containers**
+- **Implement service provider pattern for modular architecture**
+- **Use abstract base classes for common functionality (e.g., GeniusModel, GeniusRESTController)**
+- **Create interfaces for contracts between components**
+- **Organize classes by feature/functionality, not by type**
+- **Use proper class documentation with @since tags**
+- **Implement singleton pattern only when truly needed (main plugin class)**
+
+## Error Handling and Logging
+
+- **Implement try-catch blocks for expected exceptions**
+- **Log errors with context: `error_log('Plugin Error: ' . $message)`**
+- **Handle database errors gracefully with proper fallbacks**
+- **Use WordPress `is_wp_error()` to check for WP_Error objects**
+
+## Database Operations and Security
+
+- **Always use `$wpdb->prepare()` for dynamic queries**
+- **Use `$wpdb->get_results()`, `$wpdb->get_var()`, `$wpdb->get_row()` appropriately**
+- **Implement `dbDelta()` for database schema changes**
+- **Use WordPress database abstraction layer (`$wpdb`) exclusively**
+- **Sanitize all user inputs before database operations**
+- **Use WordPress `esc_sql()` for additional SQL escaping when needed**
+- **Implement proper database transaction handling**
+
+## Data Validation and Sanitization
+
+- **Use WordPress sanitization functions: `sanitize_text_field()`, `sanitize_email()`, etc.**
+- **Use WordPress validation functions: `is_email()`, `is_numeric()`, etc.**
+- **Escape output with `esc_html()`, `esc_attr()`, `esc_url()`**
+- **Use `wp_kses()` for HTML content with allowed tags**
+- **Validate nonces with `wp_verify_nonce()`**
+- **Use `current_user_can()` for capability checks**
+
+## Asset Management
+
+- **Use `wp_enqueue_script()` and `wp_enqueue_style()` for all assets**
+- **Set proper dependencies and versions for assets**
+- **Use `wp_localize_script()` for passing PHP data to JavaScript**
+- **Implement conditional loading based on context**
+- **Use `wp_add_inline_script()` and `wp_add_inline_style()` for dynamic content**
+- **Follow WordPress asset loading best practices**
+
+## WordPress Hooks and Filters
+
+- **Use actions for triggering events: `do_action()`, `add_action()`**
+- **Use filters for modifying data: `apply_filters()`, `add_filter()`**
+- **Implement proper hook priorities and parameter counts**
+- **Use `remove_action()` and `remove_filter()` when needed**
+- **Document custom hooks with `@since` tags**
+- **Use WordPress hook naming conventions**
+
+## Directory Structure and File Organization
+
+- **Follow this exact structure:**
+  ```
+  includes/
+  ├── Admin/
+  │   ├── Admin.php          # WeGenius\Admin\Admin
+  │   └── PostsPage.php      # WeGenius\Admin\PostsPage
+  ├── Analysis/
+  │   └── AnalysisManager.php # WeGenius\Analysis\AnalysisManager
+  ├── API/
+  │   └── ApiClient.php      # WeGenius\API\ApiClient
+  ├── Database/
+  │   └── Database.php       # WeGenius\Database\Database
+  ├── Abstracts/             # Base classes and interfaces
+  ├── Models/                # Data models
+  ├── REST/                  # REST API endpoints
+  └── Traits/                # Reusable traits
+  ```
+- **Each class file must have proper namespace declaration**
+- **Use PascalCase for all class files (no hyphens, no prefixes)**
+- **Organize by feature/functionality, not by technical type**
+- **Create abstract base classes in Abstracts/ directory**
+- **Use interfaces for contracts between components**

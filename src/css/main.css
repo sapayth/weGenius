@@ -1,0 +1,11 @@
+/**
+ * Main CSS Entry Point
+ * Imports all component styles
+ *
+ * @package WeGenius
+ * @since 1.0.0
+ */
+
+@import "tailwindcss";
+@import './dashboard.css';
+@import './settings.css';

@@ -1,0 +1,467 @@
+{
+	"info": {
+		"_postman_id": "wegenius-wordpress-api",
+		"name": "WeGenius WordPress API",
+		"description": "Complete API collection for WordPress plugin integration with WeGenius AI Content Analysis",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "value",
+				"value": "{{api_key}}",
+				"type": "string"
+			},
+			{
+				"key": "key",
+				"value": "X-API-KEY",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost/api/ai",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "your-api-key-here",
+			"type": "string"
+		},
+		{
+			"key": "post_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "analysis_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "suggestion_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "version_id",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Article Management",
+			"item": [
+				{
+					"name": "Submit Article for Analysis",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"wp_post_id\": 123,\n  \"title\": \"Complete Guide to WordPress SEO Optimization\",\n  \"content\": \"<p>In this comprehensive guide, we'll explore the best practices for WordPress SEO...</p><p>Content optimization is crucial for ranking higher in search engines.</p>\",\n  \"permalink\": \"https://example.com/wordpress-seo-guide\",\n  \"featured_image\": \"https://example.com/images/seo-guide.jpg\",\n  \"status\": \"published\",\n  \"published_at\": \"2025-10-09T10:00:00Z\",\n  \"author_name\": \"John Doe\",\n  \"action_type\": \"improve\",\n  \"meta_data\": {\n    \"categories\": [\"SEO\", \"WordPress\"],\n    \"tags\": [\"optimization\", \"content\", \"ranking\"],\n    \"excerpt\": \"Learn how to optimize your WordPress site for search engines\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/articles/submit",
+							"host": ["{{base_url}}"],
+							"path": ["articles", "submit"]
+						},
+						"description": "Submit a WordPress article for AI analysis. This will create a new post record and queue it for analysis."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Analyses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/articles/analyses?status=completed&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["articles", "analyses"],
+							"query": [
+								{
+									"key": "status",
+									"value": "completed",
+									"description": "Filter by status: pending, processing, completed, failed"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of results per page"
+								}
+							]
+						},
+						"description": "Get all analyses for your WordPress site"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Analysis Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/articles/analyses/{{analysis_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["articles", "analyses", "{{analysis_id}}", "status"]
+						},
+						"description": "Check the current status and progress of an analysis"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Analysis Results",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/articles/analyses/{{analysis_id}}/results",
+							"host": ["{{base_url}}"],
+							"path": ["articles", "analyses", "{{analysis_id}}", "results"]
+						},
+						"description": "Get complete analysis results including scores, insights, and token usage"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Article History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/articles/{{post_id}}/history",
+							"host": ["{{base_url}}"],
+							"path": ["articles", "{{post_id}}", "history"]
+						},
+						"description": "Get complete history of analyses and versions for an article"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for submitting and managing article analyses"
+		},
+		{
+			"name": "2. Suggestions",
+			"item": [
+				{
+					"name": "Get Suggestions for Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/suggestions/analysis/{{analysis_id}}?type=seo&status=pending",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "analysis", "{{analysis_id}}"],
+							"query": [
+								{
+									"key": "type",
+									"value": "seo",
+									"description": "Filter by type: seo, readability, structure, content_improvement"
+								},
+								{
+									"key": "status",
+									"value": "pending",
+									"description": "Filter by status: pending, approved, rejected, applied"
+								}
+							]
+						},
+						"description": "Get all AI suggestions for a specific analysis"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Suggestion Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/suggestions/{{suggestion_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "{{suggestion_id}}"]
+						},
+						"description": "Get detailed information about a specific suggestion"
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Suggestions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"suggestion_ids\": [1, 2, 3]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/suggestions/approve",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "approve"]
+						},
+						"description": "Approve multiple suggestions at once"
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Suggestions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"suggestion_ids\": [4, 5],\n  \"reason\": \"Not applicable to our content strategy\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/suggestions/reject",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "reject"]
+						},
+						"description": "Reject suggestions with optional reason"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Suggestions as Implemented",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"suggestion_ids\": [1, 2]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/suggestions/implement",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "implement"]
+						},
+						"description": "Mark suggestions as manually implemented"
+					},
+					"response": []
+				},
+				{
+					"name": "Export Suggestions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/suggestions/analysis/{{analysis_id}}/export?format=json",
+							"host": ["{{base_url}}"],
+							"path": ["suggestions", "analysis", "{{analysis_id}}", "export"],
+							"query": [
+								{
+									"key": "format",
+									"value": "json",
+									"description": "Export format: json, csv"
+								}
+							]
+						},
+						"description": "Export all suggestions for an analysis"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing AI suggestions"
+		},
+		{
+			"name": "3. Apply Suggestions",
+			"item": [
+				{
+					"name": "Apply Single Suggestion",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"suggestion_id\": {{suggestion_id}}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/apply-suggestion",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "apply-suggestion"]
+						},
+						"description": "Apply a single suggestion and create a new content version"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for applying suggestions to content"
+		},
+		{
+			"name": "4. Content Versions",
+			"item": [
+				{
+					"name": "Get All Versions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/versions",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "versions"]
+						},
+						"description": "Get all content versions for a post"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific Version",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/versions/{{version_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "versions", "{{version_id}}"]
+						},
+						"description": "Get full content of a specific version"
+					},
+					"response": []
+				},
+				{
+					"name": "Compare Two Versions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"version1\": 1,\n  \"version2\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/versions/compare",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "versions", "compare"]
+						},
+						"description": "Compare two versions and get a diff view"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing content versions"
+		},
+		{
+			"name": "5. Content Analysis",
+			"item": [
+				{
+					"name": "Analyze Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"analysis_type\": \"content_optimization\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/analyze",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "analyze"]
+						},
+						"description": "Trigger a new analysis for an existing post"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Post Analyses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/posts/{{post_id}}/analyses",
+							"host": ["{{base_url}}"],
+							"path": ["posts", "{{post_id}}", "analyses"]
+						},
+						"description": "Get all analyses for a specific post"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/analyses/{{analysis_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["analyses", "{{analysis_id}}"]
+						},
+						"description": "Get details of a single analysis"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for content analysis operations"
+		},
+		{
+			"name": "6. Utility",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/../health",
+							"host": ["{{base_url}}"],
+							"path": ["..", "health"]
+						},
+						"description": "Check if the API is running"
+					},
+					"response": []
+				},
+				{
+					"name": "API Documentation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/../docs",
+							"host": ["{{base_url}}"],
+							"path": ["..", "docs"]
+						},
+						"description": "Get API documentation"
+					},
+					"response": []
+				}
+			],
+			"description": "Utility endpoints for testing and documentation"
+		}
+	]
+}
