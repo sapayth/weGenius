@@ -82,4 +82,10 @@ module.exports = {
 		chunks: false,
 		chunkModules: false,
 	},
+	watchOptions: {
+		ignored: [
+			path.resolve(__dirname, 'node_modules'),
+			path.resolve(__dirname, 'assets'),
+		],
+	},
 };

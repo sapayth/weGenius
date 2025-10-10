@@ -13,6 +13,8 @@ import { Modal, Spinner, Button, CheckboxControl } from '@wordpress/components';
  * @param {Object} props.analysis Analysis data object
  */
 export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
+	console.log('AnalysisDetailsModal: Component rendered with props:', { isOpen, analysis });
+	
 	const [loading, setLoading] = useState(false);
 	const [analysisDetails, setAnalysisDetails] = useState(null);
 	const [suggestions, setSuggestions] = useState([]);
@@ -23,7 +25,9 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	 * Fetch analysis details and suggestions when modal opens
 	 */
 	useEffect(() => {
+		console.log('AnalysisDetailsModal: useEffect triggered with:', { isOpen, analysis });
 		if (isOpen && analysis) {
+			console.log('AnalysisDetailsModal: Fetching analysis details...');
 			fetchAnalysisDetails();
 		}
 	}, [isOpen, analysis]);
@@ -196,7 +200,12 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		);
 	};
 
-	if (!isOpen) return null;
+	console.log('AnalysisDetailsModal: About to render, isOpen:', isOpen);
+	
+	if (!isOpen) {
+		console.log('AnalysisDetailsModal: Modal is closed, returning null');
+		return null;
+	}
 
 	const groupedSuggestions = suggestions.length > 0 
 		? groupSuggestionsByCategory(suggestions)

@@ -6,8 +6,8 @@
   "scripts": {
     "build": "webpack --mode=production",
     "build:dev": "webpack --mode=development",
-    "dev": "webpack --mode=development --watch --progress",
-    "dev:verbose": "webpack --mode=development --watch --progress --verbose",
+    "start": "webpack --mode=development --watch --progress",
+    "start:verbose": "webpack --mode=development --watch --progress --verbose",
     "lint:css": "wp-scripts lint-style",
     "lint:js": "wp-scripts lint-js",
     "lint:js:fix": "wp-scripts lint-js --fix",
