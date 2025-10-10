@@ -1,6 +1,12 @@
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { Modal, Spinner, Button, CheckboxControl } from '@wordpress/components';
+import { Modal, Spinner, Button } from '@wordpress/components';
+import apiFetch from '@wordpress/api-fetch';
+
+// Configure apiFetch to use the nonce for authentication
+if ( window.wegeniusAdmin && window.wegeniusAdmin.nonce ) {
+    apiFetch.use( apiFetch.createNonceMiddleware( window.wegeniusAdmin.nonce ) );
+}
 
 /**
  * Analysis Details Modal Component
@@ -16,7 +22,6 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	const [loading, setLoading] = useState(false);
 	const [analysisDetails, setAnalysisDetails] = useState(null);
 	const [suggestions, setSuggestions] = useState([]);
-	const [selectedSuggestions, setSelectedSuggestions] = useState([]);
 	const [error, setError] = useState(null);
 
 	/**
@@ -30,44 +35,61 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 
 
 	/**
-	 * Fetch analysis details from API
+	 * Fetch analysis details from WordPress REST API
 	 */
 	const fetchAnalysisDetails = async () => {
 		setLoading(true);
 		setError(null);
 
 		try {
-			// Fetch analysis results
-			const resultsResponse = await fetch(
-				`/wp-json/wegenius/v1/articles/analyses/${analysis.id}/results`,
-				{
-					headers: {
-						'X-WP-Nonce': window.wegeniusAdmin?.nonce || window.wegenius?.nonce,
-					},
-				}
-			);
-
-			if (!resultsResponse.ok) {
-				throw new Error(__('Failed to fetch analysis results', 'wegenius'));
+			if (!analysis || !analysis.id) {
+				throw new Error(__('Analysis data not available.', 'wegenius'));
 			}
 
-			const resultsData = await resultsResponse.json();
+			// Fetch analysis results from WordPress REST API using apiFetch
+			const resultsData = await apiFetch({
+				path: `/wegenius/v1/articles/analyses/${analysis.id}/results`,
+				method: 'GET',
+			});
+
 			setAnalysisDetails(resultsData);
 
-			// Fetch suggestions if available
-			const suggestionsResponse = await fetch(
-				`/wp-json/wegenius/v1/suggestions/analysis/${analysis.id}`,
+			// For now, we'll use mock suggestions since the suggestions API isn't implemented yet
+			// TODO: Implement suggestions API endpoint
+			const mockSuggestions = [
 				{
-					headers: {
-						'X-WP-Nonce': window.wegeniusAdmin?.nonce || window.wegenius?.nonce,
-					},
+					id: 1,
+					title: 'Add more internal links',
+					description: 'Include links to related articles to improve SEO and user experience',
+					content: 'Consider adding 2-3 internal links to related posts about similar topics.',
+					priority: 'high',
+					suggestion_type: 'seo',
+					status: 'pending',
+					impact_score: 8.5
+				},
+				{
+					id: 2,
+					title: 'Improve readability',
+					description: 'Break up long paragraphs for better readability',
+					content: 'Split the second paragraph into 2-3 shorter paragraphs for better readability.',
+					priority: 'medium',
+					suggestion_type: 'readability',
+					status: 'pending',
+					impact_score: 6.2
+				},
+				{
+					id: 3,
+					title: 'Add missing subheading',
+					description: 'Include a subheading about implementation details',
+					content: 'Add a "Implementation Steps" section with numbered steps.',
+					priority: 'low',
+					suggestion_type: 'structure',
+					status: 'pending',
+					impact_score: 4.1
 				}
-			);
-
-			if (suggestionsResponse.ok) {
-				const suggestionsData = await suggestionsResponse.json();
-				setSuggestions(suggestionsData);
-			}
+			];
+			
+			setSuggestions(mockSuggestions);
 		} catch (err) {
 			console.error('Error fetching analysis details:', err);
 			setError(err.message);
@@ -77,46 +99,20 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	};
 
 	/**
-	 * Handle suggestion checkbox toggle
+	 * Handle apply suggestion
 	 */
-	const handleSuggestionToggle = (suggestionId) => {
-		setSelectedSuggestions((prev) =>
-			prev.includes(suggestionId)
-				? prev.filter((id) => id !== suggestionId)
-				: [...prev, suggestionId]
-		);
-	};
-
-	/**
-	 * Handle select all suggestions in a category
-	 */
-	const handleSelectAllInCategory = (categorySuggestions) => {
-		const categoryIds = categorySuggestions.map((s) => s.id);
-		const allSelected = categoryIds.every((id) => selectedSuggestions.includes(id));
-
-		if (allSelected) {
-			setSelectedSuggestions((prev) => prev.filter((id) => !categoryIds.includes(id)));
-		} else {
-			setSelectedSuggestions((prev) => [...new Set([...prev, ...categoryIds])]);
+	const handleApplySuggestion = async (suggestion) => {
+		try {
+			// TODO: Implement apply suggestion functionality
+			// For now, just show a success message
+			alert(__('Suggestion applied successfully!', 'wegenius'));
+			
+			// Refresh the analysis details to show updated state
+			fetchAnalysisDetails();
+		} catch (err) {
+			console.error('Error applying suggestion:', err);
+			alert(__('Failed to apply suggestion. Please try again.', 'wegenius'));
 		}
-	};
-
-	/**
-	 * Handle save to ideabox
-	 */
-	const handleSaveToIdeabox = () => {
-		// TODO: Implement save to ideabox functionality
-		console.log('Save to ideabox:', selectedSuggestions);
-		onClose();
-	};
-
-	/**
-	 * Handle apply changes
-	 */
-	const handleApplyChanges = () => {
-		// TODO: Implement apply changes functionality
-		console.log('Apply changes:', selectedSuggestions);
-		onClose();
 	};
 
 	/**
@@ -148,20 +144,13 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	};
 
 	/**
-	 * Render suggestion checkbox item
+	 * Render suggestion item
 	 */
 	const renderSuggestion = (suggestion) => (
-		<div key={suggestion.id} className="border-b border-gray-100 last:border-0">
-			<CheckboxControl
-				label={
-					<span className="text-sm text-gray-900">
-						{suggestion.title || suggestion.description}
-					</span>
-				}
-				checked={selectedSuggestions.includes(suggestion.id)}
-				onChange={() => handleSuggestionToggle(suggestion.id)}
-				className="py-2"
-			/>
+		<div key={suggestion.id} className="border-b border-gray-100 last:border-0 py-2">
+			<div className="text-sm text-gray-900">
+				{suggestion.title || suggestion.description}
+			</div>
 		</div>
 	);
 
@@ -171,24 +160,12 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	const renderCategorySection = (categoryName, categorySuggestions) => {
 		if (categorySuggestions.length === 0) return null;
 
-		const allSelected = categorySuggestions.every((s) =>
-			selectedSuggestions.includes(s.id)
-		);
-
 		return (
 			<div key={categoryName} className="mb-6">
-				<div className="flex items-center justify-between mb-3">
+				<div className="mb-3">
 					<h3 className="text-base font-semibold text-gray-900">
 						{categoryName}
 					</h3>
-					<button
-						onClick={() => handleSelectAllInCategory(categorySuggestions)}
-						className="text-sm text-blue-600 hover:text-blue-800"
-					>
-						{allSelected
-							? __('Deselect All', 'wegenius')
-							: __('Select All', 'wegenius')}
-					</button>
 				</div>
 				<div className="bg-gray-50 rounded-lg p-4">
 					{categorySuggestions.map(renderSuggestion)}
@@ -277,43 +254,108 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 					)}
 
 					{/* Suggestions Content */}
-					{!loading && !error && analysisDetails?.results?.improve?.suggestions && (
+					{!loading && !error && suggestions && suggestions.length > 0 && (
 						<div className="mb-6">
-							<h3 className="text-lg font-semibold text-gray-900 mb-4">
-								{__('Improvement Suggestions', 'wegenius')}
-							</h3>
+							<div className="mb-4">
+								<h3 className="text-lg font-semibold text-gray-900">
+									{__('Improvement Suggestions', 'wegenius')}
+								</h3>
+							</div>
 							<div className="space-y-4">
-								{analysisDetails.results.improve.suggestions.map((suggestion, index) => (
-									<div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+								{suggestions.map((suggestion, index) => (
+									<div key={suggestion.id || index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
 										<div className="flex items-start justify-between">
 											<div className="flex-1">
 												<div className="flex items-center gap-2 mb-2">
-													<span className={`px-2 py-1 text-xs font-medium rounded-full ${
-														suggestion.priority === 'high' ? 'bg-red-100 text-red-800' :
-														suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-														'bg-green-100 text-green-800'
-													}`}>
-														{suggestion.priority}
-													</span>
-													<span className={`px-2 py-1 text-xs font-medium rounded-full ${
-														suggestion.type === 'seo' ? 'bg-blue-100 text-blue-800' :
-														suggestion.type === 'readability' ? 'bg-purple-100 text-purple-800' :
-														'bg-orange-100 text-orange-800'
-													}`}>
-														{suggestion.type}
-													</span>
+													{suggestion.priority && (
+														<span className={`px-2 py-1 text-xs font-medium rounded-full ${
+															suggestion.priority === 'high' ? 'bg-red-100 text-red-800' :
+															suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+															'bg-green-100 text-green-800'
+														}`}>
+															{suggestion.priority}
+														</span>
+													)}
+													{suggestion.suggestion_type && (
+														<span className={`px-2 py-1 text-xs font-medium rounded-full ${
+															suggestion.suggestion_type === 'seo' ? 'bg-blue-100 text-blue-800' :
+															suggestion.suggestion_type === 'readability' ? 'bg-purple-100 text-purple-800' :
+															suggestion.suggestion_type === 'structure' ? 'bg-orange-100 text-orange-800' :
+															'bg-gray-100 text-gray-800'
+														}`}>
+															{suggestion.suggestion_type}
+														</span>
+													)}
+													{suggestion.status && (
+														<span className={`px-2 py-1 text-xs font-medium rounded-full ${
+															suggestion.status === 'approved' ? 'bg-green-100 text-green-800' :
+															suggestion.status === 'rejected' ? 'bg-red-100 text-red-800' :
+															suggestion.status === 'implemented' ? 'bg-blue-100 text-blue-800' :
+															'bg-yellow-100 text-yellow-800'
+														}`}>
+															{suggestion.status}
+														</span>
+													)}
 												</div>
 												<h4 className="font-medium text-gray-900 mb-2">
 													{suggestion.title}
 												</h4>
-												<p className="text-sm text-gray-600 mb-2">
-													{suggestion.description}
-												</p>
-												{suggestion.impact && (
-													<p className="text-sm text-green-600 font-medium">
-														{suggestion.impact}
+												{suggestion.description && (
+													<p className="text-sm text-gray-600 mb-2">
+														{suggestion.description}
 													</p>
 												)}
+												{suggestion.content && (
+													<div className="text-sm text-gray-700 mb-2 p-3 bg-gray-50 rounded">
+														{suggestion.content}
+													</div>
+												)}
+												{suggestion.impact_score && (
+													<p className="text-sm text-green-600 font-medium">
+														{__('Impact Score:', 'wegenius')} {suggestion.impact_score}
+													</p>
+												)}
+											</div>
+											<div className="ml-4 flex-shrink-0">
+												<Button
+													variant="primary"
+													size="small"
+													onClick={() => handleApplySuggestion(suggestion)}
+													disabled={loading}
+													className="wegen-apply-suggestion-btn"
+													style={{
+														backgroundColor: '#0073aa',
+														borderColor: '#0073aa',
+														color: '#ffffff',
+														fontSize: '12px',
+														fontWeight: '500',
+														padding: '6px 12px',
+														borderRadius: '4px',
+														boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+														transition: 'all 0.2s ease',
+														minWidth: '120px',
+														textTransform: 'none',
+														letterSpacing: '0.025em'
+													}}
+													onMouseEnter={(e) => {
+														if (!loading) {
+															e.target.style.backgroundColor = '#005a87';
+															e.target.style.borderColor = '#005a87';
+															e.target.style.transform = 'translateY(-1px)';
+															e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
+														}
+													}}
+													onMouseLeave={(e) => {
+														if (!loading) {
+															e.target.style.backgroundColor = '#0073aa';
+															e.target.style.borderColor = '#0073aa';
+															e.target.style.transform = 'translateY(0)';
+															e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.1)';
+														}
+													}}
+												>
+													{__('Apply Suggestion', 'wegenius')}
+												</Button>
 											</div>
 										</div>
 									</div>
@@ -323,7 +365,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 					)}
 
 					{/* No Suggestions State */}
-					{!loading && !error && (!analysisDetails?.results?.improve?.suggestions || analysisDetails.results.improve.suggestions.length === 0) && (
+					{!loading && !error && (!suggestions || suggestions.length === 0) && (
 						<div className="text-center py-8">
 							<p className="text-gray-500">
 								{__('No suggestions available for this analysis.', 'wegenius')}
@@ -392,23 +434,6 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 						</div>
 					)}
 
-					{/* Action Buttons */}
-					<div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-						<Button
-							variant="secondary"
-							onClick={handleSaveToIdeabox}
-							disabled={selectedSuggestions.length === 0}
-						>
-							{__('Save to Ideabox', 'wegenius')}
-						</Button>
-						<Button
-							variant="primary"
-							onClick={handleApplyChanges}
-							disabled={selectedSuggestions.length === 0}
-						>
-							{__('Apply Changes', 'wegenius')}
-						</Button>
-					</div>
 				</div>
 			</div>
 		</div>

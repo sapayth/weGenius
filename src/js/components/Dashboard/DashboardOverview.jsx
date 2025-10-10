@@ -1,10 +1,8 @@
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { Card, CardBody, CardHeader } from '@wordpress/components';
 import apiFetch from '@wordpress/api-fetch';
 import { StatusCards } from './StatusCards';
 import { RecentAnalysisTable } from './RecentAnalysisTable';
-import { IdeaInboxTable } from './IdeaInboxTable';
 
 /**
  * Main Dashboard Overview Component
@@ -115,11 +113,6 @@ export const DashboardOverview = () => {
 
 					<RecentAnalysisTable
 						analyses={dashboardData.recentAnalyses}
-						loading={dashboardData.loading}
-					/>
-
-					<IdeaInboxTable
-						ideas={dashboardData.ideaInbox}
 						loading={dashboardData.loading}
 					/>
 				</div>

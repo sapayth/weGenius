@@ -109,6 +109,9 @@ class Admin {
 				true
 			);
 
+			// Get settings for API configuration
+			$settings = get_option( 'wegenius_settings', [] );
+			
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-posts-page',
@@ -117,6 +120,8 @@ class Admin {
 					'nonce'   => wp_create_nonce( 'wp_rest' ),
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'restUrl' => rest_url( 'wegenius/v1' ),
+					'apiKey'  => $settings['api']['apiKey'] ?? '',
+					'apiBaseUrl' => $settings['api']['apiEndpoint'] ?? 'https://wegenius.fahmidsroadmap.com/api/ai',
 				]
 			);
 		}
@@ -151,6 +156,9 @@ class Admin {
 				true
 			);
 
+			// Get settings for API configuration
+			$settings = get_option( 'wegenius_settings', [] );
+			
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-dashboard',
@@ -159,6 +167,8 @@ class Admin {
 					'nonce'   => wp_create_nonce( 'wp_rest' ),
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'restUrl' => rest_url( 'wegenius/v1' ),
+					'apiKey'  => $settings['api']['apiKey'] ?? '',
+					'apiBaseUrl' => $settings['api']['apiEndpoint'] ?? 'https://wegenius.fahmidsroadmap.com/api/ai',
 				]
 			);
 		}
@@ -193,6 +203,9 @@ class Admin {
 				true
 			);
 
+			// Get settings for API configuration
+			$settings = get_option( 'wegenius_settings', [] );
+			
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-settings',
@@ -201,6 +214,8 @@ class Admin {
 					'nonce'   => wp_create_nonce( 'wp_rest' ),
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'restUrl' => rest_url( 'wegenius/v1' ),
+					'apiKey'  => $settings['api']['apiKey'] ?? '',
+					'apiBaseUrl' => $settings['api']['apiEndpoint'] ?? 'https://wegenius.fahmidsroadmap.com/api/ai',
 				]
 			);
 		}
@@ -245,6 +260,9 @@ class Admin {
 				true
 			);
 
+			// Get settings for API configuration
+			$settings = get_option( 'wegenius_settings', [] );
+			
 			// Localize script with admin data for API authentication
 			wp_localize_script(
 				'wegenius-editor',
@@ -253,6 +271,8 @@ class Admin {
 					'nonce'   => wp_create_nonce( 'wp_rest' ),
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'restUrl' => rest_url( 'wegenius/v1' ),
+					'apiKey'  => $settings['api']['apiKey'] ?? '',
+					'apiBaseUrl' => $settings['api']['apiEndpoint'] ?? 'https://wegenius.fahmidsroadmap.com/api/ai',
 				]
 			);
 		}

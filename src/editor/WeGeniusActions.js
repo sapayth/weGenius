@@ -25,6 +25,8 @@ const WeGeniusActionsSidebar = () => {
     const [ scanStatus, setScanStatus ] = useState( null );
     const [ isCheckingStatus, setIsCheckingStatus ] = useState( false );
     const [ isInitialLoading, setIsInitialLoading ] = useState( true );
+    const [ analysisDetails, setAnalysisDetails ] = useState( null );
+    const [ suggestions, setSuggestions ] = useState( null );
 
     // Get current post data
     const { 
@@ -55,15 +57,23 @@ const WeGeniusActionsSidebar = () => {
         const authorId = postData?.author;
         const author = authorId ? getEntityRecord( 'root', 'user', authorId ) : null;
         
-        // Get categories - use stable references
+        // Get categories - use stable references with useMemo-like approach
         const categoryIds = postData?.categories || [];
-        const categoryData = categoryIds.map( id => getEntityRecord( 'taxonomy', 'category', id ) ).filter( Boolean );
-        const categoryNames = categoryData.map( cat => cat.name ).filter( Boolean );
+        const categoryNames = categoryIds.length > 0 
+            ? categoryIds.map( id => getEntityRecord( 'taxonomy', 'category', id ) )
+                .filter( Boolean )
+                .map( cat => cat.name )
+                .filter( Boolean )
+            : [];
         
-        // Get tags - use stable references
+        // Get tags - use stable references with useMemo-like approach  
         const tagIds = postData?.tags || [];
-        const tagData = tagIds.map( id => getEntityRecord( 'taxonomy', 'post_tag', id ) ).filter( Boolean );
-        const tagNames = tagData.map( tag => tag.name ).filter( Boolean );
+        const tagNames = tagIds.length > 0
+            ? tagIds.map( id => getEntityRecord( 'taxonomy', 'post_tag', id ) )
+                .filter( Boolean )
+                .map( tag => tag.name )
+                .filter( Boolean )
+            : [];
         
         return {
             postId: post?.id,
@@ -86,6 +96,45 @@ const WeGeniusActionsSidebar = () => {
         }
     }, [ postId ] );
 
+    // Fetch detailed analysis results and suggestions
+    const fetchAnalysisDetails = async ( analysisId ) => {
+        try {
+            // Fetch analysis results
+            const resultsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses/${ analysisId }/results`, {
+                method: 'GET',
+                headers: {
+                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
+                    'Content-Type': 'application/json'
+                }
+            } );
+            
+            if ( resultsResponse.ok ) {
+                const resultsData = await resultsResponse.json();
+                setAnalysisDetails( resultsData.success ? resultsData.data : resultsData );
+            }
+            
+            // Fetch suggestions
+            const suggestionsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/suggestions/analysis/${ analysisId }?status=pending`, {
+                method: 'GET',
+                headers: {
+                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
+                    'Content-Type': 'application/json'
+                }
+            } );
+            
+            if ( suggestionsResponse.ok ) {
+                const suggestionsData = await suggestionsResponse.json();
+                const suggestionsArray = suggestionsData.success ? suggestionsData.data : suggestionsData;
+                // Ensure we have an array
+                const finalSuggestions = Array.isArray( suggestionsArray ) ? suggestionsArray : ( suggestionsArray?.suggestions || [] );
+                setSuggestions( finalSuggestions );
+            }
+            
+        } catch ( error ) {
+            console.error( 'Error fetching analysis details:', error );
+        }
+    };
+
     // Check scan status for current post
     const checkScanStatus = async ( isInitialLoad = false ) => {
         if ( ! postId ) {
@@ -99,12 +148,30 @@ const WeGeniusActionsSidebar = () => {
         }
         
         try {
-            const response = await apiFetch( {
-                path: `/wegenius/v1/analysis/status/${ postId }`,
+            // Call external WeGenius API instead of local WordPress REST API
+            const response = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses/${ postId }/status`, {
                 method: 'GET',
+                headers: {
+                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
+                    'Content-Type': 'application/json'
+                }
             } );
+            
+            if ( ! response.ok ) {
+                throw new Error( `HTTP error! status: ${ response.status }` );
+            }
+            
+            const responseData = await response.json();
+            
+            // Extract the actual data from the API response structure
+            const data = responseData.success ? responseData.data : responseData;
 
-            setScanStatus( response );
+            setScanStatus( data );
+            
+            // If analysis is completed, fetch detailed results and suggestions
+            if ( data.analysis?.status === 'completed' ) {
+                fetchAnalysisDetails( data.analysis.id );
+            }
         } catch ( error ) {
             setScanStatus( null );
         } finally {
@@ -144,16 +211,25 @@ const WeGeniusActionsSidebar = () => {
                 }
             };
 
-            // Send request to WeGenius API
-            const response = await apiFetch( {
-                path: '/wegenius/v1/scan',
+            // Send request to external WeGenius API
+            const response = await fetch( 'https://wegenius.fahmidsroadmap.com/api/ai/articles/submit', {
                 method: 'POST',
-                data: requestData,
+                headers: {
+                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify( requestData )
             } );
+            
+            if ( ! response.ok ) {
+                throw new Error( `HTTP error! status: ${ response.status }` );
+            }
+            
+            const data = await response.json();
 
             setScanResult( {
                 success: true,
-                data: response,
+                data: data,
                 message: __( 'Analysis submitted successfully!', 'wegenius' )
             } );
 
@@ -318,7 +394,7 @@ const WeGeniusActionsSidebar = () => {
                         </p>
                     ) }
 
-                    { scanStatus.analysis?.results && scanStatus.analysis.status === 'completed' && (
+                    { scanStatus.metrics && scanStatus.analysis?.status === 'completed' && (
                         <div style={{ marginTop: '0.5rem' }}>
                             <div style={{ 
                                 display: 'flex', 
@@ -331,162 +407,17 @@ const WeGeniusActionsSidebar = () => {
                                     fontWeight: 'bold',
                                     color: '#1d2327'
                                 }}>
-                                    { __( 'Analysis results', 'wegenius' ) }
+                                    { __( 'Analysis Metrics', 'wegenius' ) }
                                 </h4>
-                                <span style={{ 
-                                    marginLeft: '0.5rem', 
-                                    fontSize: '0.8rem', 
-                                    color: '#6c757d',
-                                    cursor: 'help'
-                                }}>
-                                    ❓
-                                </span>
                             </div>
-                            
-                            { scanStatus.analysis.results.gaps && (
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        marginBottom: '0.5rem',
-                                        cursor: 'pointer'
-                                    }}>
-                                        <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
-                                        <h5 style={{ 
-                                            margin: 0, 
-                                            fontSize: '0.85rem', 
-                                            fontWeight: 'bold',
-                                            color: '#d63384'
-                                        }}>
-                                            { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps?.length || 0 })
-                                        </h5>
-                                    </div>
-                                    
-                                    { scanStatus.analysis.results.gaps.gaps?.map( ( gap, index ) => (
-                                        <div key={ index } style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'flex-start', 
-                                            marginBottom: '0.5rem',
-                                            padding: '0.5rem',
-                                            backgroundColor: '#f8f9fa',
-                                            borderRadius: '0.25rem'
-                                        }}>
-                                            <span style={{ 
-                                                marginRight: '0.5rem', 
-                                                marginTop: '0.1rem',
-                                                fontSize: '0.7rem',
-                                                color: '#6c757d'
-                                            }}>
-                                                ●
-                                            </span>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ 
-                                                    fontSize: '0.8rem', 
-                                                    fontWeight: 'bold',
-                                                    color: '#0073aa',
-                                                    textDecoration: 'underline',
-                                                    marginBottom: '0.25rem'
-                                                }}>
-                                                    { gap.title || gap.type || __( 'Issue', 'wegenius' ) }
-                                                </div>
-                                                <div style={{ 
-                                                    fontSize: '0.75rem', 
-                                                    color: '#1d2327',
-                                                    lineHeight: '1.4'
-                                                }}>
-                                                    { gap.description || __( 'This area needs attention.', 'wegenius' ) }
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) ) }
-                                </div>
-                            ) }
-
-                            { scanStatus.analysis.results.improvements && (
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        marginBottom: '0.5rem',
-                                        cursor: 'pointer'
-                                    }}>
-                                        <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>▲</span>
-                                        <h5 style={{ 
-                                            margin: 0, 
-                                            fontSize: '0.85rem', 
-                                            fontWeight: 'bold',
-                                            color: '#00a32a'
-                                        }}>
-                                            { __( 'Good results', 'wegenius' ) } ({ scanStatus.analysis.results.improvements.length || 0 })
-                                        </h5>
-                                    </div>
-                                    
-                                    { scanStatus.analysis.results.improvements.map( ( improvement, index ) => (
-                                        <div key={ index } style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'flex-start', 
-                                            marginBottom: '0.5rem',
-                                            padding: '0.5rem',
-                                            backgroundColor: '#f0f8f0',
-                                            borderRadius: '0.25rem'
-                                        }}>
-                                            <span style={{ 
-                                                marginRight: '0.5rem', 
-                                                marginTop: '0.1rem',
-                                                fontSize: '0.7rem',
-                                                color: '#00a32a'
-                                            }}>
-                                                ●
-                                            </span>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ 
-                                                    fontSize: '0.8rem', 
-                                                    fontWeight: 'bold',
-                                                    color: '#0073aa',
-                                                    textDecoration: 'underline',
-                                                    marginBottom: '0.25rem'
-                                                }}>
-                                                    { improvement.title || improvement.type || __( 'Good practice', 'wegenius' ) }
-                                                </div>
-                                                <div style={{ 
-                                                    fontSize: '0.75rem', 
-                                                    color: '#1d2327',
-                                                    lineHeight: '1.4'
-                                                }}>
-                                                    { improvement.description || __( 'Well done!', 'wegenius' ) }
-                                                </div>
-                                            </div>
-                                            <span style={{ 
-                                                fontSize: '0.7rem',
-                                                color: '#6c757d',
-                                                cursor: 'pointer'
-                                            }}>
-                                                👁
-                                            </span>
-                                        </div>
-                                    ) ) }
-                                </div>
-                            ) }
-                        </div>
-                    ) }
-
-                    { scanStatus.analysis?.scores && scanStatus.analysis.status === 'completed' && (
-                        <div style={{ marginTop: '0.5rem' }}>
-                            <h4 style={{ 
-                                margin: '0 0 0.75rem 0', 
-                                fontSize: '0.9rem', 
-                                fontWeight: 'bold',
-                                color: '#1d2327'
-                            }}>
-                                { __( 'Scores', 'wegenius' ) }
-                            </h4>
                             
                             <div style={{ 
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                                gap: '0.5rem'
+                                gap: '0.5rem',
+                                marginBottom: '1rem'
                             }}>
-                                { Object.entries( scanStatus.analysis.scores ).map( ( [ key, value ] ) => {
+                                { Object.entries( scanStatus.metrics ).map( ( [ key, value ] ) => {
                                     const score = typeof value === 'number' ? value : 0;
                                     const getScoreColor = ( score ) => {
                                         if ( score >= 80 ) return '#00a32a';
@@ -496,11 +427,9 @@ const WeGeniusActionsSidebar = () => {
                                     
                                     const getScoreLabel = ( key ) => {
                                         const labels = {
-                                            overall: __( 'Overall', 'wegenius' ),
-                                            seo: __( 'SEO', 'wegenius' ),
-                                            readability: __( 'Readability', 'wegenius' ),
-                                            structure: __( 'Structure', 'wegenius' ),
-                                            engagement: __( 'Engagement', 'wegenius' )
+                                            seo_score: __( 'SEO Score', 'wegenius' ),
+                                            content_gaps: __( 'Content Gaps', 'wegenius' ),
+                                            competitor_analysis: __( 'Competitor Analysis', 'wegenius' )
                                         };
                                         return labels[ key ] || key.charAt( 0 ).toUpperCase() + key.slice( 1 );
                                     };
@@ -534,27 +463,23 @@ const WeGeniusActionsSidebar = () => {
                             </div>
                         </div>
                     ) }
+
                 </div>
             ) }
 
-            <PanelBody title={ __( 'Improve', 'wegenius' ) }>
-                { console.log( 'Improve panel - scanStatus:', scanStatus ) }
-                { console.log( 'Improve panel - analysis results:', scanStatus?.analysis?.results ) }
-                { console.log( 'Improve panel - analysis type:', scanStatus?.analysis?.analysis_type ) }
-                { console.log( 'Improve panel - improvements:', scanStatus?.analysis?.results?.improve?.improvements ) }
-                { scanStatus?.analysis?.results?.improve?.improvements && scanStatus.status === 'completed' && (
+            <PanelBody title={ __( 'Improve', 'wegenius' ) } initialOpen={false}>
+                { scanStatus?.analysis?.status === 'completed' && scanStatus?.analysis?.analysis_type === 'improve' && (
                     <div>
-                        { console.log( 'Rendering improvements:', scanStatus.analysis.results.improve.improvements ) }
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
                             fontSize: '0.9rem', 
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Improvements', 'wegenius' ) } ({ scanStatus.analysis.results.improve.improvements.length || 0 })
+                            { __( 'Improvements', 'wegenius' ) } ({ Array.isArray( suggestions ) ? suggestions.filter( s => s.type === 'content_improvement' ).length : 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results.improve.improvements.map( ( improvement, index ) => (
+                        { Array.isArray( suggestions ) && suggestions.filter( s => s.type === 'content_improvement' ).map( ( suggestion, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 
@@ -579,40 +504,47 @@ const WeGeniusActionsSidebar = () => {
                                         textDecoration: 'underline',
                                         marginBottom: '0.25rem'
                                     }}>
-                                        { improvement.title || improvement.type || __( 'Good practice', 'wegenius' ) }
+                                        { suggestion.title || suggestion.type || __( 'Improvement', 'wegenius' ) }
                                     </div>
                                     <div style={{ 
                                         fontSize: '0.75rem', 
                                         color: '#1d2327',
                                         lineHeight: '1.4'
                                     }}>
-                                        { improvement.description || __( 'Well done!', 'wegenius' ) }
+                                        { suggestion.description || suggestion.content || __( 'Improvement suggestion available.', 'wegenius' ) }
                                     </div>
                                 </div>
                             </div>
                         ) ) }
+                        
+                        { (!Array.isArray( suggestions ) || suggestions.filter( s => s.type === 'content_improvement' ).length === 0) && (
+                            <div style={{ 
+                                padding: '0.75rem',
+                                backgroundColor: '#f0f8f0',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.8rem',
+                                color: '#1d2327'
+                            }}>
+                                { __( 'No improvement suggestions available at this time.', 'wegenius' ) }
+                            </div>
+                        ) }
                     </div>
                 ) }
             </PanelBody>
             
-            <PanelBody title={ __( 'Gaps', 'wegenius' ) }>
-                { console.log( 'Gaps panel - scanStatus:', scanStatus ) }
-                { console.log( 'Gaps panel - analysis results:', scanStatus?.analysis?.results ) }
-                { console.log( 'Gaps panel - analysis type:', scanStatus?.analysis?.analysis_type ) }
-                { console.log( 'Gaps panel - gaps:', scanStatus?.analysis?.results?.gaps?.gaps ) }
-                { scanStatus?.analysis?.results?.gaps?.gaps && scanStatus.status === 'completed' && (
+            <PanelBody title={ __( 'Gaps', 'wegenius' ) } initialOpen={false}>
+                { scanStatus?.analysis?.status === 'completed' && scanStatus?.analysis?.analysis_type === 'content_gap' && (
                     <div>
-                        { console.log( 'Rendering gaps:', scanStatus.analysis.results.gaps.gaps ) }
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
                             fontSize: '0.9rem', 
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Problems', 'wegenius' ) } ({ scanStatus.analysis.results.gaps.gaps.length || 0 })
+                            { __( 'Content Gaps', 'wegenius' ) } ({ Array.isArray( suggestions ) ? suggestions.filter( s => s.type === 'seo' || s.type === 'structure' ).length : 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results.gaps.gaps.map( ( gap, index ) => (
+                        { Array.isArray( suggestions ) && suggestions.filter( s => s.type === 'seo' || s.type === 'structure' ).map( ( suggestion, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 
@@ -637,24 +569,36 @@ const WeGeniusActionsSidebar = () => {
                                         textDecoration: 'underline',
                                         marginBottom: '0.25rem'
                                     }}>
-                                        { gap.title || gap.type || __( 'Issue', 'wegenius' ) }
+                                        { suggestion.title || suggestion.type || __( 'Gap', 'wegenius' ) }
                                     </div>
                                     <div style={{ 
                                         fontSize: '0.75rem', 
                                         color: '#1d2327',
                                         lineHeight: '1.4'
                                     }}>
-                                        { gap.description || __( 'This area needs attention.', 'wegenius' ) }
+                                        { suggestion.description || suggestion.content || __( 'Content gap identified.', 'wegenius' ) }
                                     </div>
                                 </div>
                             </div>
                         ) ) }
+                        
+                        { (!Array.isArray( suggestions ) || suggestions.filter( s => s.type === 'seo' || s.type === 'structure' ).length === 0) && (
+                            <div style={{ 
+                                padding: '0.75rem',
+                                backgroundColor: '#f8f9fa',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.8rem',
+                                color: '#1d2327'
+                            }}>
+                                { __( 'No content gaps identified at this time.', 'wegenius' ) }
+                            </div>
+                        ) }
                     </div>
                 ) }
             </PanelBody>
             
-            <PanelBody title={ __( 'Ideas', 'wegenius' ) }>
-                { scanStatus?.analysis?.results?.[scanStatus?.analysis?.analysis_type]?.ideas && scanStatus.status === 'completed' && (
+            <PanelBody title={ __( 'Ideas', 'wegenius' ) } initialOpen={false}>
+                { scanStatus?.analysis?.status === 'completed' && (
                     <div>
                         <h4 style={{ 
                             margin: '0 0 0.75rem 0', 
@@ -662,10 +606,10 @@ const WeGeniusActionsSidebar = () => {
                             fontWeight: 'bold',
                             color: '#1d2327'
                         }}>
-                            { __( 'Ideas', 'wegenius' ) } ({ scanStatus.analysis.results[scanStatus.analysis.analysis_type].ideas.length || 0 })
+                            { __( 'Ideas & Suggestions', 'wegenius' ) } ({ Array.isArray( suggestions ) ? suggestions.length : 0 })
                         </h4>
                         
-                        { scanStatus.analysis.results[scanStatus.analysis.analysis_type].ideas.map( ( idea, index ) => (
+                        { Array.isArray( suggestions ) && suggestions.map( ( suggestion, index ) => (
                             <div key={ index } style={{ 
                                 display: 'flex', 
                                 alignItems: 'flex-start', 
@@ -690,18 +634,40 @@ const WeGeniusActionsSidebar = () => {
                                         textDecoration: 'underline',
                                         marginBottom: '0.25rem'
                                     }}>
-                                        { idea.title || idea.type || __( 'Idea', 'wegenius' ) }
+                                        { suggestion.title || suggestion.type || __( 'Idea', 'wegenius' ) }
                                     </div>
                                     <div style={{ 
                                         fontSize: '0.75rem', 
                                         color: '#1d2327',
                                         lineHeight: '1.4'
                                     }}>
-                                        { idea.description || __( 'Consider this suggestion.', 'wegenius' ) }
+                                        { suggestion.description || suggestion.content || __( 'Consider this suggestion.', 'wegenius' ) }
                                     </div>
+                                    { suggestion.type && (
+                                        <div style={{ 
+                                            fontSize: '0.7rem', 
+                                            color: '#6c757d',
+                                            marginTop: '0.25rem',
+                                            fontStyle: 'italic'
+                                        }}>
+                                            Type: { suggestion.type }
+                                        </div>
+                                    ) }
                                 </div>
                             </div>
                         ) ) }
+                        
+                        { (!Array.isArray( suggestions ) || suggestions.length === 0) && (
+                            <div style={{ 
+                                padding: '0.75rem',
+                                backgroundColor: '#e7f3ff',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.8rem',
+                                color: '#1d2327'
+                            }}>
+                                { __( 'No suggestions available at this time.', 'wegenius' ) }
+                            </div>
+                        ) }
                     </div>
                 ) }
             </PanelBody>
