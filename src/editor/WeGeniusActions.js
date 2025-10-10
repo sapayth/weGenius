@@ -5,6 +5,7 @@ import {
     Button,
     RadioControl,
     Spinner,
+    TextControl,
 } from '@wordpress/components';
 import { registerPlugin } from '@wordpress/plugins';
 import { useState, useEffect } from '@wordpress/element';
@@ -18,6 +19,7 @@ if ( window.wegeniusAdmin && window.wegeniusAdmin.nonce ) {
 
 const WeGeniusActionsSidebar = () => {
     const [ selectedOption, setSelectedOption ] = useState( 'improve' );
+    const [ focusKeyphrase, setFocusKeyphrase ] = useState( '' );
     const [ isScanning, setIsScanning ] = useState( false );
     const [ scanResult, setScanResult ] = useState( null );
     const [ scanStatus, setScanStatus ] = useState( null );
@@ -137,6 +139,7 @@ const WeGeniusActionsSidebar = () => {
                 published_at: new Date().toISOString(),
                 author_name: authorName || '',
                 action_type: selectedOption, // This maps to our radio buttons
+                focus_keyphrase: focusKeyphrase || '', // Add focus keyphrase if provided
                 meta_data: {
                     categories: categories || [],
                     tags: tags || [],
@@ -191,6 +194,15 @@ const WeGeniusActionsSidebar = () => {
                 onChange={ ( value ) => setSelectedOption( value ) }
             />
             <div style={{ marginTop: '1rem' }}>
+                <TextControl
+                    label={ __( 'Focus keyphrase (optional)', 'wegenius' ) }
+                    value={ focusKeyphrase }
+                    onChange={ ( value ) => setFocusKeyphrase( value ) }
+                    placeholder={ __( 'Enter your focus keyphrase...', 'wegenius' ) }
+                    help={ __( 'Specify a keyphrase to focus the analysis on specific terms or topics.', 'wegenius' ) }
+                />
+            </div>
+            <div style={{ marginTop: '1.5rem' }}>
                 <Button 
                     variant="primary" 
                     onClick={ handleScan }
@@ -528,7 +540,6 @@ const WeGeniusActionsSidebar = () => {
                     ) }
                 </div>
             ) }
-
 
             <PanelBody title={ __( 'Improve', 'wegenius' ) }>
                 { console.log( 'Improve panel - scanStatus:', scanStatus ) }

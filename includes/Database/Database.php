@@ -369,4 +369,5 @@ class Database {
 		
 		return $deleted;
 	}
+
 }

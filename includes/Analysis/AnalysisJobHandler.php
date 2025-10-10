@@ -58,7 +58,7 @@ class AnalysisJobHandler {
 	 * @return void
 	 */
 	private function init_hooks(): void {
-		add_action( self::HOOK, [ $this, 'process_analysis' ], 10, 2 );
+		add_action( self::HOOK, [ $this, 'process_analysis' ], 10, 4 );
 		add_action( 'init', [ $this, 'maybe_schedule_cleanup' ] );
 		add_action( 'wegenius_cleanup_old_analyses', [ $this, 'cleanup_old_analyses' ] );
 	}
@@ -70,20 +70,23 @@ class AnalysisJobHandler {
 	 * @param int    $post_id Post ID.
 	 * @param array  $analysis_types Analysis types.
 	 * @param int    $delay Delay in seconds (default: 0).
+	 * @param string $focus_keyphrase Focus keyphrase for analysis (default: '').
 	 * @return int|false Action ID or false on failure.
 	 */
-	public function schedule_analysis( int $analysis_id, int $post_id, array $analysis_types, int $delay = 0 ) {
+	public function schedule_analysis( int $analysis_id, int $post_id, array $analysis_types, int $delay = 0, string $focus_keyphrase = '' ) {
 		// Check if Action Scheduler is available.
 		if ( ! function_exists( 'as_schedule_single_action' ) ) {
 			error_log( 'WeGenius: Action Scheduler not available for analysis job.' );
 			return false;
 		}
 
+
 		// Prepare job arguments.
 		$args = [
-			'analysis_id' => $analysis_id,
-			'post_id' => $post_id,
-			'analysis_types' => $analysis_types,
+			$analysis_id,
+			$post_id,
+			$analysis_types,
+			$focus_keyphrase,
 		];
 
 		// Schedule the job.
@@ -113,7 +116,7 @@ class AnalysisJobHandler {
 	 * @param array $analysis_types Analysis types.
 	 * @return void
 	 */
-	public function process_analysis( $analysis_id, $post_id = null, $analysis_types = null ): void {
+	public function process_analysis( $analysis_id, $post_id = null, $analysis_types = null, $focus_keyphrase = null ): void {
 		// Handle Action Scheduler call format
 		if ( is_array( $analysis_id ) ) {
 			// Action Scheduler passes arguments as an array
@@ -121,7 +124,11 @@ class AnalysisJobHandler {
 			$analysis_id = $args['analysis_id'] ?? 0;
 			$post_id = $args['post_id'] ?? 0;
 			$analysis_types = $args['analysis_types'] ?? [];
+			$focus_keyphrase = $args['focus_keyphrase'] ?? '';
 		}
+		
+		// Ensure focus_keyphrase is a string
+		$focus_keyphrase = $focus_keyphrase ?? '';
 
 		// Ensure we have valid data
 		$analysis_id = intval( $analysis_id );
@@ -169,7 +176,7 @@ class AnalysisJobHandler {
 			error_log( sprintf( 'WeGenius: Post found - ID: %d, Title: %s', $post->ID, $post->post_title ) );
 
 			// Prepare analysis data.
-			$analysis_data = $this->prepare_analysis_data( $post, $analysis_types );
+			$analysis_data = $this->prepare_analysis_data( $post, $analysis_types, $focus_keyphrase );
 			error_log( sprintf( 'WeGenius: Analysis data prepared - Content length: %d chars', strlen( $analysis_data['content'] ) ) );
 
 			// Process each analysis type.
@@ -209,9 +216,10 @@ class AnalysisJobHandler {
 	 *
 	 * @param \WP_Post $post WordPress post object.
 	 * @param array    $analysis_types Analysis types.
+	 * @param string   $focus_keyphrase Focus keyphrase for analysis.
 	 * @return array Analysis data.
 	 */
-	private function prepare_analysis_data( \WP_Post $post, array $analysis_types ): array {
+	private function prepare_analysis_data( \WP_Post $post, array $analysis_types, string $focus_keyphrase = '' ): array {
 		// Get post content (strip HTML for analysis).
 		$content = wp_strip_all_tags( $post->post_content );
 
@@ -234,6 +242,7 @@ class AnalysisJobHandler {
 			'permalink' => get_permalink( $post->ID ),
 			'status' => $post->post_status,
 			'published_at' => $post->post_date,
+			'focus_keyphrase' => $focus_keyphrase,
 			'meta_data' => $meta_data,
 			'analysis_types' => $analysis_types,
 		];
@@ -375,6 +384,9 @@ class AnalysisJobHandler {
 			$featured_image_value = null;
 		}
 
+		// Get focus keyphrase from analysis data
+		$focus_keyphrase = $data['focus_keyphrase'] ?? '';
+
 		$api_data = [
 			'wp_post_id' => $data['post_id'],
 			'title' => $data['title'],
@@ -385,6 +397,7 @@ class AnalysisJobHandler {
 			'published_at' => $data['published_at'],
 			'author_name' => $data['meta_data']['author'] ?? '',
 			'action_type' => $mapped_action_type,
+			'focus_keyphrase' => $focus_keyphrase,
 			'meta_data' => [
 				'categories' => $data['meta_data']['categories'] ?? [],
 				'tags' => $data['meta_data']['tags'] ?? [],

@@ -1111,7 +1111,7 @@ class ApiController extends WP_REST_Controller {
      *
      * @return void
      */
-    private function schedule_analysis( $analysis_id, $post_id, $analysis_types ) {
+    private function schedule_analysis( $analysis_id, $post_id, $analysis_types, $focus_keyphrase = '' ) {
         // Check if Action Scheduler is available.
         if ( ! function_exists( 'as_schedule_single_action' ) ) {
             // Update status to failed with error message.
@@ -1144,7 +1144,7 @@ class ApiController extends WP_REST_Controller {
             $this->job_handler = new \WeGenius\Analysis\AnalysisJobHandler();
         }
         // Schedule the analysis job.
-        $action_id = $this->job_handler->schedule_analysis( $analysis_id, $post_id, $analysis_types );
+        $action_id = $this->job_handler->schedule_analysis( $analysis_id, $post_id, $analysis_types, 0, $focus_keyphrase );
         if ( $action_id ) {
             // Update post meta to track the job.
             update_post_meta( $post_id, '_wegenius_analysis_job_id', $action_id );
@@ -1808,8 +1808,10 @@ class ApiController extends WP_REST_Controller {
         $article_id = $this->get_or_create_article_record( $post );
         // Create analysis record
         $analysis_id = $this->create_analysis_record( $article_id, $data['action_type'] ?? 'improve' );
-        // Schedule analysis job
-        $this->schedule_analysis( $analysis_id, $data['wp_post_id'], [ $data['action_type'] ?? 'improve' ] );
+        
+        // Schedule analysis job with focus keyphrase
+        $focus_keyphrase = $data['focus_keyphrase'] ?? '';
+        $this->schedule_analysis( $analysis_id, $data['wp_post_id'], [ $data['action_type'] ?? 'improve' ], $focus_keyphrase );
 
         // Get all analysis types for this post
         $all_analysis_types = $this->get_post_analysis_types_data( $data['wp_post_id'] );
