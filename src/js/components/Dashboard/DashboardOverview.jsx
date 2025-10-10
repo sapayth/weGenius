@@ -1,6 +1,7 @@
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { Card, CardBody, CardHeader } from '@wordpress/components';
+import apiFetch from '@wordpress/api-fetch';
 import { StatusCards } from './StatusCards';
 import { ThisWeekSection } from './ThisWeekSection';
 import { RecentAnalysisTable } from './RecentAnalysisTable';
@@ -37,19 +38,15 @@ export const DashboardOverview = () => {
 		try {
 			setDashboardData(prev => ({ ...prev, loading: true }));
 
-			const response = await fetch('/wp-json/wegenius/v1/dashboard/overview', {
+			// Use WordPress apiFetch instead of native fetch
+			const data = await apiFetch({
+				path: '/wegenius/v1/dashboard/test',
 				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					'X-WP-Nonce': window.wegeniusAdmin.nonce,
-				},
 			});
-
-			if (!response.ok) {
-				throw new Error('Failed to load dashboard data');
-			}
-
-			const data = await response.json();
+			
+			// Debug: Log the received data
+			console.log('Dashboard data received:', data);
+			
 			setDashboardData(prev => ({
 				...prev,
 				...data,

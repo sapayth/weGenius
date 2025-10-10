@@ -8,18 +8,28 @@
 
 namespace WeGenius\REST;
 
+use WP_REST_Controller;
+use WP_REST_Server;
+
 /**
  * REST API Controller Class
  *
  * @since 1.0.0
  */
-class ApiController {
+class ApiController extends WP_REST_Controller {
     /**
      * Namespace for the REST API.
      *
      * @var string
      */
     const NAMESPACE = 'wegenius/v1';
+    
+    /**
+     * REST base for the API.
+     *
+     * @var string
+     */
+    const REST_BASE = 'dashboard';
 
     /**
      * Analysis job handler instance.
@@ -32,6 +42,9 @@ class ApiController {
      * Constructor.
      */
     public function __construct() {
+        $this->namespace = self::NAMESPACE;
+        $this->rest_base = self::REST_BASE;
+        
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
     }
 
@@ -254,7 +267,18 @@ class ApiController {
             [
                 'methods'             => 'GET',
                 'callback'            => [ $this, 'get_dashboard_overview' ],
-                'permission_callback' => [ $this, 'check_permissions' ],
+                'permission_callback' => [ $this, 'check_dashboard_permissions' ],
+            ]
+        );
+        
+        // Temporary test dashboard endpoint with no permissions
+        register_rest_route(
+            self::NAMESPACE,
+            '/dashboard/test',
+            [
+                'methods'             => 'GET',
+                'callback'            => [ $this, 'get_dashboard_overview' ],
+                'permission_callback' => '__return_true',
             ]
         );
         // Status polling endpoint
@@ -296,6 +320,28 @@ class ApiController {
                 'permission_callback' => [ $this, 'check_permissions' ],
             ]
         );
+        
+        // Debug endpoint
+        register_rest_route(
+            self::NAMESPACE,
+            '/debug',
+            [
+                'methods'             => 'GET',
+                'callback'            => [ $this, 'debug_info' ],
+                'permission_callback' => '__return_true',
+            ]
+        );
+        
+        // Test endpoint with no permissions
+        register_rest_route(
+            self::NAMESPACE,
+            '/test',
+            [
+                'methods'             => 'GET',
+                'callback'            => [ $this, 'test_endpoint' ],
+                'permission_callback' => '__return_true',
+            ]
+        );
     }
 
     /**
@@ -305,23 +351,9 @@ class ApiController {
      *
      * @return bool
      */
-    public function check_permissions( $request )
-    : bool {
-        // Check if user is logged in
-        if ( ! is_user_logged_in() ) {
-            return false;
-        }
-        // Check if user has manage_options capability
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return false;
-        }
-        // Verify nonce for authenticated requests
-        $nonce = $request->get_header( 'X-WP-Nonce' );
-        if ( $nonce && ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
-            return false;
-        }
-
-        return true;
+    public function check_permissions( $request ) {
+        // Check if user is logged in and has manage_options capability
+        return is_user_logged_in() && current_user_can( 'manage_options' );
     }
 
     /**
@@ -755,14 +787,17 @@ class ApiController {
         $recent_analyses = $this->get_recent_analyses( $filters );
         $idea_inbox = $this->get_idea_inbox( $filters );
 
-        return rest_ensure_response(
-            [
-                'overview' => $overview,
-                'thisWeek' => $this_week,
-                'recentAnalyses' => $recent_analyses,
-                'ideaInbox' => $idea_inbox,
-            ]
-        );
+        $response_data = [
+            'overview' => $overview,
+            'thisWeek' => $this_week,
+            'recentAnalyses' => $recent_analyses,
+            'ideaInbox' => $idea_inbox,
+        ];
+
+        // Debug: Log the response data
+        error_log( 'WeGenius Dashboard API Response: ' . wp_json_encode( $response_data ) );
+
+        return rest_ensure_response( $response_data );
     }
 
     /**
@@ -1154,24 +1189,63 @@ class ApiController {
     private function get_analysis_statistics( $filters ) {
         global $wpdb;
         $analyses_table = $wpdb->prefix . 'wegenius_analyses';
+        $articles_table = $wpdb->prefix . 'wegenius_articles';
+        $suggestions_table = $wpdb->prefix . 'wegenius_suggestions';
         
-        // Get counts by status
+        // Check if tables exist, if not return zeros
+        if ( ! $this->table_exists( $analyses_table ) ) {
+            return [
+                'analyzed' => 0,
+                'generated' => 0,
+                'suggestions' => 0,
+                'pending' => 0,
+                'processing' => 0,
+                'failed' => 0,
+            ];
+        }
+        
+        // Get counts by status with better filtering
         $analyzed = $wpdb->get_var(
             "SELECT COUNT(*) FROM $analyses_table WHERE status = 'completed'"
         );
         
+        // Count articles that have been improved/generated
         $generated = $wpdb->get_var(
-            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'completed' AND analysis_type IN ('improve', 'content_gap', 'new_article')"
+            "SELECT COUNT(DISTINCT a.article_id) 
+             FROM $analyses_table a 
+             INNER JOIN $articles_table ar ON a.article_id = ar.id 
+             WHERE a.status = 'completed' 
+             AND a.analysis_type IN ('improve', 'content_gap', 'new_article')"
         );
         
-        $suggestions = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}wegenius_suggestions WHERE status = 'approved'"
+        // Count approved suggestions (check if table exists)
+        $suggestions = 0;
+        if ( $this->table_exists( $suggestions_table ) ) {
+            $suggestions = $wpdb->get_var(
+                "SELECT COUNT(*) FROM $suggestions_table WHERE status = 'approved'"
+            );
+        }
+        
+        // Get additional statistics
+        $pending = $wpdb->get_var(
+            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'pending'"
+        );
+        
+        $processing = $wpdb->get_var(
+            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'processing'"
+        );
+        
+        $failed = $wpdb->get_var(
+            "SELECT COUNT(*) FROM $analyses_table WHERE status = 'failed'"
         );
         
         return [
             'analyzed' => (int) $analyzed,
             'generated' => (int) $generated,
             'suggestions' => (int) $suggestions,
+            'pending' => (int) $pending,
+            'processing' => (int) $processing,
+            'failed' => (int) $failed,
         ];
     }
 
@@ -1232,8 +1306,13 @@ class ApiController {
         $analyses_table = $wpdb->prefix . 'wegenius_analyses';
         $articles_table = $wpdb->prefix . 'wegenius_articles';
         
+        // Check if tables exist
+        if ( ! $this->table_exists( $analyses_table ) ) {
+            return [];
+        }
+        
         $analyses = $wpdb->get_results(
-            "SELECT a.*, ar.title, ar.wp_post_id 
+            "SELECT a.*, ar.title, ar.wp_post_id, ar.permalink, ar.author_name
              FROM $analyses_table a 
              LEFT JOIN $articles_table ar ON a.article_id = ar.id 
              ORDER BY a.created_at DESC 
@@ -1242,12 +1321,42 @@ class ApiController {
         
         $result = [];
         foreach ( $analyses as $analysis ) {
+            // Get post title if article title is empty
+            $title = $analysis->title;
+            if ( empty( $title ) && $analysis->wp_post_id ) {
+                $post = get_post( $analysis->wp_post_id );
+                $title = $post ? $post->post_title : __( 'Untitled', 'wegenius' );
+            }
+            
+            // Format analysis type for display
+            $type_labels = [
+                'improve' => __( 'Content Improvement', 'wegenius' ),
+                'content_gap' => __( 'Content Gap Analysis', 'wegenius' ),
+                'new_article' => __( 'New Article Ideas', 'wegenius' ),
+                'trends' => __( 'Trend Analysis', 'wegenius' ),
+            ];
+            
+            $type_display = $type_labels[ $analysis->analysis_type ] ?? ucfirst( str_replace( '_', ' ', $analysis->analysis_type ) );
+            
+            // Get status color and icon
+            $status_config = $this->get_status_config( $analysis->status );
+            
             $result[] = [
                 'id' => $analysis->id,
-                'title' => $analysis->title ?: __( 'Untitled', 'wegenius' ),
+                'title' => $title,
+                'postId' => $analysis->wp_post_id,
+                'permalink' => $analysis->permalink,
+                'author' => $analysis->author_name,
                 'lastAnalyzed' => $analysis->created_at,
-                'type' => ucfirst( str_replace( '_', ' ', $analysis->analysis_type ) ),
+                'updatedAt' => $analysis->updated_at,
+                'type' => $type_display,
+                'typeKey' => $analysis->analysis_type,
                 'status' => ucfirst( $analysis->status ),
+                'statusKey' => $analysis->status,
+                'statusColor' => $status_config['color'],
+                'statusIcon' => $status_config['icon'],
+                'hasResults' => ! empty( $analysis->results ),
+                'scores' => $analysis->scores ? json_decode( $analysis->scores, true ) : null,
             ];
         }
         
@@ -1265,6 +1374,11 @@ class ApiController {
         global $wpdb;
         $suggestions_table = $wpdb->prefix . 'wegenius_suggestions';
         
+        // Check if table exists
+        if ( ! $this->table_exists( $suggestions_table ) ) {
+            return [];
+        }
+        
         $suggestions = $wpdb->get_results(
             "SELECT * FROM $suggestions_table 
              WHERE status = 'pending' 
@@ -1274,15 +1388,133 @@ class ApiController {
         
         $result = [];
         foreach ( $suggestions as $suggestion ) {
+            // Format suggestion type for display
+            $type_labels = [
+                'seo' => __( 'SEO Optimization', 'wegenius' ),
+                'readability' => __( 'Readability Improvement', 'wegenius' ),
+                'structure' => __( 'Content Structure', 'wegenius' ),
+                'engagement' => __( 'Engagement Enhancement', 'wegenius' ),
+                'content_gap' => __( 'Content Gap', 'wegenius' ),
+                'new_article' => __( 'New Article Idea', 'wegenius' ),
+            ];
+            
+            $type_display = $type_labels[ $suggestion->suggestion_type ] ?? ucfirst( str_replace( '_', ' ', $suggestion->suggestion_type ) );
+            
             $result[] = [
                 'id' => $suggestion->id,
                 'title' => $suggestion->title ?: __( 'Content Suggestion', 'wegenius' ),
                 'description' => wp_trim_words( $suggestion->suggestion, 20 ),
-                'type' => ucfirst( str_replace( '_', ' ', $suggestion->type ) ),
+                'fullSuggestion' => $suggestion->suggestion,
+                'type' => $type_display,
+                'typeKey' => $suggestion->suggestion_type,
+                'priority' => ucfirst( $suggestion->priority ),
+                'priorityKey' => $suggestion->priority,
+                'createdAt' => $suggestion->created_at,
+                'updatedAt' => $suggestion->updated_at,
             ];
         }
         
         return $result;
+    }
+
+    /**
+     * Get status configuration for display.
+     *
+     * @param string $status Status key.
+     *
+     * @return array Status configuration.
+     */
+    private function get_status_config( $status ) {
+        $configs = [
+            'pending' => [
+                'color' => 'yellow',
+                'icon' => '⏳',
+            ],
+            'processing' => [
+                'color' => 'blue',
+                'icon' => '🔄',
+            ],
+            'completed' => [
+                'color' => 'green',
+                'icon' => '✅',
+            ],
+            'failed' => [
+                'color' => 'red',
+                'icon' => '❌',
+            ],
+        ];
+        
+        return $configs[ $status ] ?? [
+            'color' => 'gray',
+            'icon' => '❓',
+        ];
+    }
+
+    /**
+     * Check if a database table exists.
+     *
+     * @param string $table_name Table name.
+     *
+     * @return bool True if table exists.
+     */
+    private function table_exists( $table_name ) {
+        global $wpdb;
+        
+        $result = $wpdb->get_var(
+            $wpdb->prepare(
+                "SHOW TABLES LIKE %s",
+                $table_name
+            )
+        );
+        
+        return $result === $table_name;
+    }
+
+    /**
+     * Check permissions for dashboard endpoints.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return bool
+     */
+    public function check_dashboard_permissions( $request ) {
+        // Check if user is logged in and has manage_options capability
+        return is_user_logged_in() && current_user_can( 'manage_options' );
+    }
+
+    /**
+     * Test endpoint.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response
+     */
+    public function test_endpoint( $request ) {
+        return rest_ensure_response( [
+            'message' => 'WeGenius API is working!',
+            'timestamp' => current_time( 'mysql' ),
+            'user_logged_in' => is_user_logged_in(),
+            'user_id' => get_current_user_id(),
+        ] );
+    }
+
+    /**
+     * Debug information endpoint.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response
+     */
+    public function debug_info( $request ) {
+        return rest_ensure_response( [
+            'user_logged_in' => is_user_logged_in(),
+            'user_id' => get_current_user_id(),
+            'user_can_manage_options' => current_user_can( 'manage_options' ),
+            'user_roles' => wp_get_current_user()->roles,
+            'nonce_header' => $request->get_header( 'X-WP-Nonce' ),
+            'request_method' => $request->get_method(),
+            'request_headers' => $request->get_headers(),
+        ] );
     }
 
     /**

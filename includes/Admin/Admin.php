@@ -244,6 +244,17 @@ class Admin {
 				$version,
 				true
 			);
+
+			// Localize script with admin data for API authentication
+			wp_localize_script(
+				'wegenius-editor',
+				'wegeniusAdmin',
+				[
+					'nonce'   => wp_create_nonce( 'wp_rest' ),
+					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'restUrl' => rest_url( 'wegenius/v1' ),
+				]
+			);
 		}
 	}
 
