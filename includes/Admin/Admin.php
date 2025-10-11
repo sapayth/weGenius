@@ -111,7 +111,7 @@ class Admin {
 
 			// Get settings for API configuration
 			$settings = get_option( 'wegenius_settings', [] );
-			
+
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-posts-page',
@@ -158,7 +158,7 @@ class Admin {
 
 			// Get settings for API configuration
 			$settings = get_option( 'wegenius_settings', [] );
-			
+
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-dashboard',
@@ -205,7 +205,7 @@ class Admin {
 
 			// Get settings for API configuration
 			$settings = get_option( 'wegenius_settings', [] );
-			
+
 			// Localize script with admin data.
 			wp_localize_script(
 				'wegenius-settings',
@@ -245,13 +245,13 @@ class Admin {
 			// Load dependencies from asset file if it exists
 			$dependencies = [ 'wp-plugins' ];
 			$version = WEGENIUS_VERSION;
-			
+
 			if ( file_exists( $asset_path ) ) {
 				$asset_file = require $asset_path;
 				$dependencies = $asset_file['dependencies'];
 				$version = $asset_file['version'];
 			}
-			
+
 			wp_enqueue_script(
 				'wegenius-editor',
 				WEGENIUS_PLUGIN_URL . 'assets/js/editor.js',
@@ -262,7 +262,7 @@ class Admin {
 
 			// Get settings for API configuration
 			$settings = get_option( 'wegenius_settings', [] );
-			
+
 			// Localize script with admin data for API authentication
 			wp_localize_script(
 				'wegenius-editor',
@@ -311,15 +311,6 @@ class Admin {
 			'wegenius-settings',
 			[ $this, 'render_settings_page' ]
 		);
-
-		add_submenu_page(
-			'wegenius',
-			__( 'Analysis History', 'wegenius' ),
-			__( 'Analysis History', 'wegenius' ),
-			'manage_options',
-			'wegenius-history',
-			[ $this, 'render_history_page' ]
-		);
 	}
 
 	/**
@@ -347,19 +338,4 @@ class Admin {
 		</div>
 		<?php
 	}
-
-	/**
-	 * Render analysis history page.
-	 *
-	 * @return void
-	 */
-	public function render_history_page(): void {
-		?>
-		<div class="wrap wegenius-container">
-			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-			<div id="wegenius-history-root"></div>
-		</div>
-		<?php
-	}
 }
-

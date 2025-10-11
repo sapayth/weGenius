@@ -10,6 +10,7 @@ namespace WeGenius\REST;
 
 use WP_REST_Controller;
 use WP_REST_Server;
+use WeGenius\API\ExternalApiClient;
 
 /**
  * REST API Controller Class
@@ -39,11 +40,19 @@ class ApiController extends WP_REST_Controller {
     private $job_handler;
 
     /**
+     * External API client instance.
+     *
+     * @var \WeGenius\API\ExternalApiClient
+     */
+    private $external_api_client;
+
+    /**
      * Constructor.
      */
     public function __construct() {
         $this->namespace = self::NAMESPACE;
         $this->rest_base = self::REST_BASE;
+        $this->external_api_client = new ExternalApiClient();
         
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
     }
@@ -376,6 +385,7 @@ class ApiController extends WP_REST_Controller {
      */
     public function submit_article( $request ) {
         $data = $request->get_json_params();
+        
         // Validate required fields
         $required_fields = [ 'wp_post_id', 'title', 'content' ];
         foreach ( $required_fields as $field ) {
@@ -387,23 +397,19 @@ class ApiController extends WP_REST_Controller {
                 );
             }
         }
-        // Create article record
-        $article_id = $this->create_article_record( $data );
-        // Submit to external API
-        $external_response = $this->submit_to_external_api( $data );
-        if ( is_wp_error( $external_response ) ) {
-            return $external_response;
+        
+        // Submit to external API directly
+        $result = $this->external_api_client->submit_article( $data );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
-        // Create analysis record
-        $analysis_id = $this->create_analysis_record( $article_id, $data['action_type'] ?? 'improve' );
 
         return rest_ensure_response(
             [
                 'success'              => true,
                 'message'              => __( 'Article submitted for analysis successfully.', 'wegenius' ),
-                'article_id'           => $article_id,
-                'analysis_id'          => $analysis_id,
-                'external_analysis_id' => $external_response['analysis_id'] ?? null,
+                'external_analysis_id' => $result['analysis_id'] ?? null,
             ]
         );
     }
@@ -418,20 +424,19 @@ class ApiController extends WP_REST_Controller {
     public function get_analyses( $request ) {
         $status = $request->get_param( 'status' );
         $limit  = $request->get_param( 'limit' ) ?: 10;
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'wegenius_analyses';
-        $where_clause = '';
-        $params       = [];
+        
+        $params = [
+            'limit' => $limit,
+        ];
+        
         if ( $status ) {
-            $where_clause = 'WHERE status = %s';
-            $params[]     = $status;
+            $params['status'] = $status;
         }
-        $query    = "SELECT * FROM $table_name $where_clause ORDER BY created_at DESC LIMIT %d";
-        $params[] = $limit;
-        if ( ! empty( $params ) ) {
-            $results = $wpdb->get_results( $wpdb->prepare( $query, $params ) );
-        } else {
-            $results = $wpdb->get_results( $wpdb->prepare( $query, $limit ) );
+        
+        $results = $this->external_api_client->get_analyses( $params );
+        
+        if ( is_wp_error( $results ) ) {
+            return $results;
         }
 
         return rest_ensure_response( $results );
@@ -446,31 +451,14 @@ class ApiController extends WP_REST_Controller {
      */
     public function get_analysis_status( $request ) {
         $analysis_id = $request->get_param( 'analysis_id' );
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'wegenius_analyses';
-        $analysis = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM $table_name WHERE id = %d",
-                $analysis_id
-            )
-        );
-        if ( ! $analysis ) {
-            return new \WP_Error(
-                'analysis_not_found',
-                __( 'Analysis not found.', 'wegenius' ),
-                [ 'status' => 404 ]
-            );
+        
+        $result = $this->external_api_client->get_analysis_status( $analysis_id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
 
-        return rest_ensure_response(
-            [
-                'id'         => $analysis->id,
-                'status'     => $analysis->status,
-                'progress'   => $this->get_analysis_progress( $analysis ),
-                'created_at' => $analysis->created_at,
-                'updated_at' => $analysis->updated_at,
-            ]
-        );
+        return rest_ensure_response( $result );
     }
 
     /**
@@ -482,33 +470,14 @@ class ApiController extends WP_REST_Controller {
      */
     public function get_analysis_results( $request ) {
         $analysis_id = $request->get_param( 'analysis_id' );
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'wegenius_analyses';
-        $analysis = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM $table_name WHERE id = %d",
-                $analysis_id
-            )
-        );
-        if ( ! $analysis ) {
-            return new \WP_Error(
-                'analysis_not_found',
-                __( 'Analysis not found.', 'wegenius' ),
-                [ 'status' => 404 ]
-            );
+        
+        $result = $this->external_api_client->get_analysis_results( $analysis_id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
-        $results = [
-            'id'          => $analysis->id,
-            'status'      => $analysis->status,
-            'results'     => $analysis->results ? json_decode( $analysis->results, true ) : null,
-            'scores'      => $analysis->scores ? json_decode( $analysis->scores, true ) : null,
-            'insights'    => $analysis->insights ? json_decode( $analysis->insights, true ) : null,
-            'token_usage' => $analysis->token_usage,
-            'created_at'  => $analysis->created_at,
-            'updated_at'  => $analysis->updated_at,
-        ];
 
-        return rest_ensure_response( $results );
+        return rest_ensure_response( $result );
     }
 
     /**
@@ -520,42 +489,14 @@ class ApiController extends WP_REST_Controller {
      */
     public function get_article_history( $request ) {
         $post_id = $request->get_param( 'post_id' );
-        global $wpdb;
-        $articles_table = $wpdb->prefix . 'wegenius_articles';
-        $analyses_table = $wpdb->prefix . 'wegenius_analyses';
-        // Get article
-        $article = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM $articles_table WHERE wp_post_id = %d",
-                $post_id
-            )
-        );
-        if ( ! $article ) {
-            return rest_ensure_response( [] );
+        
+        $result = $this->external_api_client->get_article_history( $post_id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
-        // Get all analyses for this article
-        $analyses = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $analyses_table WHERE article_id = %d ORDER BY created_at DESC",
-                $article->id
-            )
-        );
-        // Get all versions for this article
-        $versions_table = $wpdb->prefix . 'wegenius_versions';
-        $versions       = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $versions_table WHERE article_id = %d ORDER BY version_number DESC",
-                $article->id
-            )
-        );
 
-        return rest_ensure_response(
-            [
-                'article'  => $article,
-                'analyses' => $analyses,
-                'versions' => $versions,
-            ]
-        );
+        return rest_ensure_response( $result );
     }
 
     /**
@@ -752,6 +693,7 @@ class ApiController extends WP_REST_Controller {
         $params       = $request->get_json_params();
         $api_endpoint = sanitize_url( $params['apiEndpoint'] ?? '' );
         $api_key      = sanitize_text_field( $params['apiKey'] ?? '' );
+        
         if ( empty( $api_endpoint ) || empty( $api_key ) ) {
             return new \WP_Error(
                 'missing_credentials',
@@ -759,22 +701,26 @@ class ApiController extends WP_REST_Controller {
                 [ 'status' => 400 ]
             );
         }
-        // Test API connection (placeholder implementation)
-        $test_result = $this->test_api_endpoint( $api_endpoint, $api_key );
-        if ( $test_result['success'] ) {
-            return rest_ensure_response(
-                [
-                    'success' => true,
-                    'message' => __( 'API connection successful!', 'wegenius' ),
-                ]
-            );
-        } else {
-            return new \WP_Error(
-                'api_connection_failed',
-                $test_result['message'],
-                [ 'status' => 400 ]
-            );
+
+        // Temporarily update settings for testing
+        $current_settings = get_option( 'wegenius_settings', [] );
+        $test_settings = $current_settings;
+        $test_settings['api']['apiEndpoint'] = $api_endpoint;
+        $test_settings['api']['apiKey'] = $api_key;
+        
+        // Create a temporary client with test settings
+        $test_client = new ExternalApiClient();
+        $test_client->api_base_url = $api_endpoint;
+        $test_client->api_key = $api_key;
+        
+        // Test the connection
+        $result = $test_client->test_connection();
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
         }
+
+        return rest_ensure_response( $result );
     }
 
     /**
@@ -1459,54 +1405,156 @@ class ApiController extends WP_REST_Controller {
     public function get_suggestions( $request ) {
         $analysis_id = $request->get_param( 'analysis_id' );
         
-        global $wpdb;
-        $suggestions_table = $wpdb->prefix . 'wegenius_suggestions';
+        $result = $this->external_api_client->get_suggestions( $analysis_id );
         
-        // Check if table exists
-        if ( ! $this->table_exists( $suggestions_table ) ) {
-            return rest_ensure_response( [] );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Approve suggestions.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function approve_suggestions( $request ) {
+        $data = $request->get_json_params();
+        $suggestion_ids = $data['suggestion_ids'] ?? [];
+        
+        if ( empty( $suggestion_ids ) ) {
+            return new \WP_Error(
+                'missing_suggestion_ids',
+                __( 'Suggestion IDs are required.', 'wegenius' ),
+                [ 'status' => 400 ]
+            );
         }
         
-        // Get suggestions for this analysis
-        $suggestions = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $suggestions_table WHERE analysis_id = %d ORDER BY created_at DESC",
-                $analysis_id
-            )
-        );
+        $result = $this->external_api_client->approve_suggestions( $suggestion_ids );
         
-        $result = [];
-        foreach ( $suggestions as $suggestion ) {
-            // Format suggestion type for display
-            $type_labels = [
-                'seo' => __( 'SEO Optimization', 'wegenius' ),
-                'on_page_seo' => __( 'On-Page SEO', 'wegenius' ),
-                'readability' => __( 'Readability Improvement', 'wegenius' ),
-                'structure' => __( 'Content Structure', 'wegenius' ),
-                'engagement' => __( 'Engagement Enhancement', 'wegenius' ),
-                'content_gap' => __( 'Content Gap', 'wegenius' ),
-                'new_article' => __( 'New Article Idea', 'wegenius' ),
-            ];
-            
-            $type_display = $type_labels[ $suggestion->suggestion_type ] ?? ucfirst( str_replace( '_', ' ', $suggestion->suggestion_type ) );
-            
-            $result[] = [
-                'id' => $suggestion->id,
-                'analysis_id' => $suggestion->analysis_id,
-                'title' => $suggestion->title ?: __( 'Content Suggestion', 'wegenius' ),
-                'description' => $suggestion->description ?: wp_trim_words( $suggestion->content, 20 ),
-                'content' => $suggestion->content,
-                'suggestion_type' => $suggestion->suggestion_type,
-                'type' => $type_display,
-                'typeKey' => $suggestion->suggestion_type,
-                'priority' => ucfirst( $suggestion->priority ),
-                'priorityKey' => $suggestion->priority,
-                'status' => $suggestion->status,
-                'createdAt' => $suggestion->created_at,
-                'updatedAt' => $suggestion->updated_at,
-            ];
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Reject suggestions.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function reject_suggestions( $request ) {
+        $data = $request->get_json_params();
+        $suggestion_ids = $data['suggestion_ids'] ?? [];
+        $reason = $data['reason'] ?? '';
+        
+        if ( empty( $suggestion_ids ) ) {
+            return new \WP_Error(
+                'missing_suggestion_ids',
+                __( 'Suggestion IDs are required.', 'wegenius' ),
+                [ 'status' => 400 ]
+            );
         }
         
+        $result = $this->external_api_client->reject_suggestions( $suggestion_ids, $reason );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Mark suggestions as implemented.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function implement_suggestions( $request ) {
+        $data = $request->get_json_params();
+        $suggestion_ids = $data['suggestion_ids'] ?? [];
+        
+        if ( empty( $suggestion_ids ) ) {
+            return new \WP_Error(
+                'missing_suggestion_ids',
+                __( 'Suggestion IDs are required.', 'wegenius' ),
+                [ 'status' => 400 ]
+            );
+        }
+        
+        $result = $this->external_api_client->implement_suggestions( $suggestion_ids );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Get versions for a post.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function get_versions( $request ) {
+        $post_id = $request->get_param( 'post_id' );
+        
+        $result = $this->external_api_client->get_versions( $post_id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Get specific version.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function get_version( $request ) {
+        $post_id = $request->get_param( 'post_id' );
+        $version_id = $request->get_param( 'version_id' );
+        
+        $result = $this->external_api_client->get_version( $post_id, $version_id );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * Compare versions.
+     *
+     * @param \WP_REST_Request $request The request object.
+     *
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public function compare_versions( $request ) {
+        $post_id = $request->get_param( 'post_id' );
+        $data = $request->get_json_params();
+        
+        $result = $this->external_api_client->compare_versions( $post_id, $data );
+        
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
         return rest_ensure_response( $result );
     }
 

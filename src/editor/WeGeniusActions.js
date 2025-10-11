@@ -11,6 +11,7 @@ import { registerPlugin } from '@wordpress/plugins';
 import { useState, useEffect } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
+import { AnalysisDetailsModal } from '../js/components/Dashboard/AnalysisDetailsModal';
 
 // Configure apiFetch to use the nonce for authentication
 if ( window.wegeniusAdmin && window.wegeniusAdmin.nonce ) {
@@ -27,6 +28,8 @@ const WeGeniusActionsSidebar = () => {
     const [ isInitialLoading, setIsInitialLoading ] = useState( true );
     const [ analysisDetails, setAnalysisDetails ] = useState( null );
     const [ suggestions, setSuggestions ] = useState( null );
+    const [ isModalOpen, setIsModalOpen ] = useState( false );
+    const [ selectedAnalysis, setSelectedAnalysis ] = useState( null );
 
     // Get current post data
     const { 
@@ -57,7 +60,7 @@ const WeGeniusActionsSidebar = () => {
         const authorId = postData?.author;
         const author = authorId ? getEntityRecord( 'root', 'user', authorId ) : null;
         
-        // Get categories - use stable references with useMemo-like approach
+        // Get categories - use stable references to prevent re-renders
         const categoryIds = postData?.categories || [];
         const categoryNames = categoryIds.length > 0 
             ? categoryIds.map( id => getEntityRecord( 'taxonomy', 'category', id ) )
@@ -66,7 +69,7 @@ const WeGeniusActionsSidebar = () => {
                 .filter( Boolean )
             : [];
         
-        // Get tags - use stable references with useMemo-like approach  
+        // Get tags - use stable references to prevent re-renders
         const tagIds = postData?.tags || [];
         const tagNames = tagIds.length > 0
             ? tagIds.map( id => getEntityRecord( 'taxonomy', 'post_tag', id ) )
@@ -87,20 +90,27 @@ const WeGeniusActionsSidebar = () => {
             tags: tagNames,
             excerpt: postData?.excerpt?.rendered || '',
         };
-    }, [] ); // Add empty dependency array to prevent unnecessary re-renders
+    }, [] ); // Remove postId dependency to avoid circular reference
 
-    // Automatically check scan status when component mounts
+    // Automatically check scan status when component mounts or postId changes
     useEffect( () => {
         if ( postId ) {
             checkScanStatus( true );
         }
     }, [ postId ] );
 
-    // Fetch detailed analysis results and suggestions
-    const fetchAnalysisDetails = async ( analysisId ) => {
+    // Debug modal state changes
+    useEffect( () => {
+        if ( isModalOpen ) {
+            console.log('WeGeniusActions: Modal opened with analysis:', selectedAnalysis);
+        }
+    }, [ isModalOpen, selectedAnalysis ] );
+
+    // Fetch detailed analysis results and suggestions using new wp_post_id based endpoint
+    const fetchAnalysisDetails = async ( wpPostId, analysisType = 'improve' ) => {
         try {
-            // Fetch analysis results
-            const resultsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses/${ analysisId }/results`, {
+            // Fetch analysis results using new endpoint structure
+            const resultsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses_by_post_id/${ wpPostId }/results/${ analysisType }`, {
                 method: 'GET',
                 headers: {
                     'X-API-Key': window.wegeniusAdmin?.apiKey || '',
@@ -110,24 +120,31 @@ const WeGeniusActionsSidebar = () => {
             
             if ( resultsResponse.ok ) {
                 const resultsData = await resultsResponse.json();
-                setAnalysisDetails( resultsData.success ? resultsData.data : resultsData );
-            }
-            
-            // Fetch suggestions
-            const suggestionsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/suggestions/analysis/${ analysisId }?status=pending`, {
-                method: 'GET',
-                headers: {
-                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
-                    'Content-Type': 'application/json'
+                const data = resultsData.success ? resultsData.data : resultsData;
+                
+                // Set analysis details from the new structure
+                setAnalysisDetails( {
+                    analysis: data.analysis,
+                    post: data.post,
+                    metrics: data.analysis?.metrics || {}
+                } );
+                
+                // Set suggestions from the new structure (already grouped by type)
+                if ( data.suggestions ) {
+                    // Flatten all suggestions into a single array for compatibility
+                    const allSuggestions = [];
+                    Object.keys( data.suggestions ).forEach( type => {
+                        if ( Array.isArray( data.suggestions[type] ) ) {
+                            data.suggestions[type].forEach( suggestion => {
+                                allSuggestions.push( {
+                                    ...suggestion,
+                                    suggestion_type: type
+                                } );
+                            } );
+                        }
+                    } );
+                    setSuggestions( allSuggestions );
                 }
-            } );
-            
-            if ( suggestionsResponse.ok ) {
-                const suggestionsData = await suggestionsResponse.json();
-                const suggestionsArray = suggestionsData.success ? suggestionsData.data : suggestionsData;
-                // Ensure we have an array
-                const finalSuggestions = Array.isArray( suggestionsArray ) ? suggestionsArray : ( suggestionsArray?.suggestions || [] );
-                setSuggestions( finalSuggestions );
             }
             
         } catch ( error ) {
@@ -148,14 +165,21 @@ const WeGeniusActionsSidebar = () => {
         }
         
         try {
-            // Call external WeGenius API instead of local WordPress REST API
-            const response = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses/${ postId }/status`, {
+            // Call external WeGenius API using new wp_post_id based endpoint
+            const response = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses_by_post_id/${ postId }/results`, {
                 method: 'GET',
                 headers: {
                     'X-API-Key': window.wegeniusAdmin?.apiKey || '',
                     'Content-Type': 'application/json'
                 }
             } );
+            
+            if ( response.status === 404 ) {
+                // No analyses found for this post - this is normal for new posts
+                console.log( `WeGeniusActions: No analyses found for post ${ postId } - this is normal for new posts` );
+                setScanStatus( null );
+                return;
+            }
             
             if ( ! response.ok ) {
                 throw new Error( `HTTP error! status: ${ response.status }` );
@@ -166,13 +190,25 @@ const WeGeniusActionsSidebar = () => {
             // Extract the actual data from the API response structure
             const data = responseData.success ? responseData.data : responseData;
 
-            setScanStatus( data );
-            
-            // If analysis is completed, fetch detailed results and suggestions
-            if ( data.analysis?.status === 'completed' ) {
-                fetchAnalysisDetails( data.analysis.id );
+            // New API structure: data.analyses is an array of all analyses
+            if ( data.analyses && data.analyses.length > 0 ) {
+                // Get the latest analysis (first in the array)
+                const latestAnalysis = data.analyses[0];
+                setScanStatus( {
+                    analysis: latestAnalysis.analysis,
+                    post: data.post,
+                    total_analyses: data.total_analyses
+                } );
+                
+                // If analysis is completed, fetch detailed results and suggestions
+                if ( latestAnalysis.analysis?.status === 'completed' ) {
+                    fetchAnalysisDetails( postId, latestAnalysis.analysis.type );
+                }
+            } else {
+                setScanStatus( null );
             }
         } catch ( error ) {
+            console.error( 'WeGeniusActions: Error checking scan status:', error );
             setScanStatus( null );
         } finally {
             if ( isInitialLoad ) {
@@ -248,7 +284,49 @@ const WeGeniusActionsSidebar = () => {
         }
     };
 
+    /**
+     * Handle opening the analysis details modal
+     */
+    const handleOpenDetails = () => {
+        console.log('WeGeniusActions: handleOpenDetails called');
+        console.log('WeGeniusActions: scanStatus:', scanStatus);
+        console.log('WeGeniusActions: scanStatus?.analysis:', scanStatus?.analysis);
+        
+        if ( scanStatus?.analysis ) {
+            console.log('WeGeniusActions: Setting selected analysis and opening modal');
+            // Ensure wp_post_id is included in the analysis object
+            const analysisWithPostId = {
+                ...scanStatus.analysis,
+                wp_post_id: postId
+            };
+            setSelectedAnalysis( analysisWithPostId );
+            setIsModalOpen( true );
+        } else {
+            console.log('WeGeniusActions: No analysis available, but opening modal for testing');
+            // For testing purposes, create a mock analysis object
+            const mockAnalysis = {
+                id: postId,
+                wp_post_id: postId,
+                status: 'completed',
+                analysis_type: 'improve',
+                created_at: new Date().toISOString()
+            };
+            setSelectedAnalysis( mockAnalysis );
+            setIsModalOpen( true );
+        }
+    };
+
+    /**
+     * Handle closing the analysis details modal
+     */
+    const handleCloseModal = () => {
+        console.log('WeGeniusActions: handleCloseModal called');
+        setIsModalOpen( false );
+        setSelectedAnalysis( null );
+    };
+
     return (
+        <>
         <PluginSidebar
             name="wegenius-actions-sidebar"
             title={ __( 'weGenius Actions', 'wegenius' ) }
@@ -272,6 +350,8 @@ const WeGeniusActionsSidebar = () => {
                     onChange={ ( value ) => setFocusKeyphrase( value ) }
                     placeholder={ __( 'Enter your focus keyphrase...', 'wegenius' ) }
                     help={ __( 'Specify a keyphrase to focus the analysis on specific terms or topics.', 'wegenius' ) }
+                    __next40pxDefaultSize={ true }
+                    __nextHasNoMarginBottom={ true }
                 />
             </div>
             <div style={{ marginTop: '1.5rem' }}>
@@ -671,8 +751,28 @@ const WeGeniusActionsSidebar = () => {
                     </div>
                 ) }
             </PanelBody>
+
+            <Button 
+            onClick={ () => {
+                console.log('WeGeniusActions: Details button clicked');
+                handleOpenDetails();
+            }}
+            variant="secondary"
+        >
+            { __( 'Details', 'wegenius' ) }
+        </Button>
         </PanelBody>
+
+        
         </PluginSidebar>
+
+        {/* Analysis Details Modal */}
+        <AnalysisDetailsModal
+            isOpen={ isModalOpen }
+            onClose={ handleCloseModal }
+            analysis={ selectedAnalysis }
+        />
+        </>
     );
 };
 
