@@ -12,6 +12,7 @@ import { useState, useEffect } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 import { AnalysisDetailsModal } from '../js/components/Dashboard/AnalysisDetailsModal';
+import { API_ENDPOINTS, getApiHeaders } from '../js/constants/api';
 
 // Configure apiFetch to use the nonce for authentication
 if ( window.wegeniusAdmin && window.wegeniusAdmin.nonce ) {
@@ -110,12 +111,11 @@ const WeGeniusActionsSidebar = () => {
     const fetchAnalysisDetails = async ( wpPostId, analysisType = 'improve' ) => {
         try {
             // Fetch analysis results using new endpoint structure
-            const resultsResponse = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses_by_post_id/${ wpPostId }/results/${ analysisType }`, {
+            const resultsUrl = API_ENDPOINTS.getAnalysisResultsByPostIdAndType(wpPostId, analysisType);
+            const headers = getApiHeaders();
+            const resultsResponse = await fetch(resultsUrl, {
                 method: 'GET',
-                headers: {
-                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
-                    'Content-Type': 'application/json'
-                }
+                headers
             } );
             
             if ( resultsResponse.ok ) {
@@ -166,12 +166,11 @@ const WeGeniusActionsSidebar = () => {
         
         try {
             // Call external WeGenius API using new wp_post_id based endpoint
-            const response = await fetch( `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses_by_post_id/${ postId }/results`, {
+            const url = API_ENDPOINTS.getAnalysisResultsByPostId(postId);
+            const headers = getApiHeaders();
+            const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
-                    'Content-Type': 'application/json'
-                }
+                headers
             } );
             
             if ( response.status === 404 ) {
@@ -248,12 +247,11 @@ const WeGeniusActionsSidebar = () => {
             };
 
             // Send request to external WeGenius API
-            const response = await fetch( 'https://wegenius.fahmidsroadmap.com/api/ai/articles/submit', {
+            const url = API_ENDPOINTS.submitArticle();
+            const headers = getApiHeaders();
+            const response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'X-API-Key': window.wegeniusAdmin?.apiKey || '',
-                    'Content-Type': 'application/json'
-                },
+                headers,
                 body: JSON.stringify( requestData )
             } );
             

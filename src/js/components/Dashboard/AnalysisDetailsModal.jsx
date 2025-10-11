@@ -1,6 +1,7 @@
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { Modal, Spinner, Button, Notice } from '@wordpress/components';
+import { API_ENDPOINTS, getApiHeaders } from '../../constants/api';
 
 /**
  * Analysis Details Modal Component
@@ -40,19 +41,15 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 				throw new Error(__('Analysis data not available.', 'wegenius'));
 			}
 
-			const resultsHeaders = {
-				'Content-Type': 'application/json',
-				'X-API-Key': window.wegeniusAdmin?.apiKey || '',
-			};
-
 			const wpPostId = analysis.wp_post_id || 0;
-			const url = `https://wegenius.fahmidsroadmap.com/api/ai/articles/analyses_by_post_id/${wpPostId}/results`;
+			const url = API_ENDPOINTS.getAnalysisResultsByPostId(wpPostId);
+			const headers = getApiHeaders();
 			
 			console.log('AnalysisDetailsModal: Fetching from endpoint:', url);
 			
 			const response = await fetch(url, {
 				method: 'GET',
-				headers: resultsHeaders,
+				headers,
 			});
 
 			if (!response.ok) {
@@ -147,12 +144,32 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	 */
 	const handleApplySuggestion = async (suggestion) => {
 		try {
-			// TODO: Implement apply suggestion functionality
-			// For now, just show a success message
-			alert(__('Suggestion applied successfully!', 'wegenius'));
+			const postId = analysis?.wp_post_id || 0;
+			const url = API_ENDPOINTS.applySuggestion(postId);
+			const headers = getApiHeaders();
+			
+			const response = await fetch(url, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({
+					suggestion_id: suggestion.id,
+					action: 'apply'
+				}),
+			});
 
-			// Refresh the analysis details to show updated state
-			fetchAnalysisDetails();
+			if (!response.ok) {
+				throw new Error(`Failed to apply suggestion: ${response.status}`);
+			}
+
+			const result = await response.json();
+			
+			if (result.success) {
+				alert(__('Suggestion applied successfully!', 'wegenius'));
+				// Refresh the analysis details to show updated state
+				fetchAnalysisDetails();
+			} else {
+				throw new Error(result.message || 'Failed to apply suggestion');
+			}
 		} catch (err) {
 			console.error('Error applying suggestion:', err);
 			alert(__('Failed to apply suggestion. Please try again.', 'wegenius'));
