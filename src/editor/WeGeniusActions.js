@@ -6,9 +6,10 @@ import {
     RadioControl,
     Spinner,
     TextControl,
+    CheckboxControl,
 } from '@wordpress/components';
 import { registerPlugin } from '@wordpress/plugins';
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useMemo, useCallback } from '@wordpress/element';
 import { useSelect, useDispatch } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 import { AnalysisDetailsModal } from '../js/components/Dashboard/AnalysisDetailsModal';
@@ -32,15 +33,18 @@ const WeGeniusActionsSidebar = () => {
     const [ isModalOpen, setIsModalOpen ] = useState( false );
     const [ selectedAnalysis, setSelectedAnalysis ] = useState( null );
     
+    // WordPress editor dispatch
+    const { editPost } = useDispatch('core/editor');
+    
     // Yoast integration state
-    const [ isYoastActive, setIsYoastActive ] = useState( false );
+    const [ isYoastActive, setIsYoastActive ] = useState( window.wegeniusAdmin?.isYoastActive || false );
     const [ yoastData, setYoastData ] = useState( {
         metaDescription: false,
         readability: false,
         schema: false
     } );
 
-    // Get current post data
+    // Get current post data with stable references
     const { 
         postId, 
         postTitle, 
@@ -49,13 +53,12 @@ const WeGeniusActionsSidebar = () => {
         featuredImageUrl, 
         postStatus, 
         authorName, 
-        categories, 
-        tags, 
+        categoryIds, 
+        tagIds, 
         excerpt 
     } = useSelect( ( select ) => {
         const { getCurrentPost } = select( 'core/editor' );
         const { getEntityRecord, getMedia } = select( 'core' );
-        const { getCurrentUser } = select( 'core' );
         const post = getCurrentPost();
         
         // Get post data from the editor
@@ -69,24 +72,6 @@ const WeGeniusActionsSidebar = () => {
         const authorId = postData?.author;
         const author = authorId ? getEntityRecord( 'root', 'user', authorId ) : null;
         
-        // Get categories - use stable references to prevent re-renders
-        const categoryIds = postData?.categories || [];
-        const categoryNames = categoryIds.length > 0 
-            ? categoryIds.map( id => getEntityRecord( 'taxonomy', 'category', id ) )
-                .filter( Boolean )
-                .map( cat => cat.name )
-                .filter( Boolean )
-            : [];
-        
-        // Get tags - use stable references to prevent re-renders
-        const tagIds = postData?.tags || [];
-        const tagNames = tagIds.length > 0
-            ? tagIds.map( id => getEntityRecord( 'taxonomy', 'post_tag', id ) )
-                .filter( Boolean )
-                .map( tag => tag.name )
-                .filter( Boolean )
-            : [];
-        
         return {
             postId: post?.id,
             postTitle: post?.title || postData?.title?.rendered || '',
@@ -95,59 +80,33 @@ const WeGeniusActionsSidebar = () => {
             featuredImageUrl: featuredImage?.source_url || '',
             postStatus: postData?.status || 'draft',
             authorName: author?.name || '',
-            categories: categoryNames,
-            tags: tagNames,
+            categoryIds: postData?.categories || [],
+            tagIds: postData?.tags || [],
             excerpt: postData?.excerpt?.rendered || '',
         };
     }, [] ); // Remove postId dependency to avoid circular reference
 
-    // Check if Yoast plugin is active and fetch Yoast data
-    useEffect( () => {
-        const checkYoastPlugin = async () => {
-            try {
-                // Check if Yoast SEO plugin is active
-                const response = await apiFetch( {
-                    path: '/wp/v2/plugins',
-                    method: 'GET'
-                } );
-                
-                const yoastPlugin = response.find( plugin => 
-                    plugin.plugin === 'wordpress-seo/wp-seo.php' && plugin.status === 'active'
-                );
-                
-                setIsYoastActive( !!yoastPlugin );
-                
-                // If Yoast is active, fetch Yoast data for current post
-                if ( yoastPlugin && postId ) {
-                    await fetchYoastData();
-                }
-            } catch ( error ) {
-                console.log( 'WeGeniusActions: Yoast plugin check failed:', error );
-                setIsYoastActive( false );
-            }
-        };
-        
-        if ( postId ) {
-            checkYoastPlugin();
-        }
-    }, [ postId ] );
+    // Get categories and tags with stable references using separate useSelect calls
+    const categories = useSelect( ( select ) => {
+        if ( !categoryIds || categoryIds.length === 0 ) return [];
+        const { getEntityRecord } = select( 'core' );
+        return categoryIds.map( id => getEntityRecord( 'taxonomy', 'category', id ) )
+            .filter( Boolean )
+            .map( cat => cat.name )
+            .filter( Boolean );
+    }, [ categoryIds ] );
 
-    // Automatically check scan status when component mounts or postId changes
-    useEffect( () => {
-        if ( postId ) {
-            checkScanStatus( true );
-        }
-    }, [ postId ] );
+    const tags = useSelect( ( select ) => {
+        if ( !tagIds || tagIds.length === 0 ) return [];
+        const { getEntityRecord } = select( 'core' );
+        return tagIds.map( id => getEntityRecord( 'taxonomy', 'post_tag', id ) )
+            .filter( Boolean )
+            .map( tag => tag.name )
+            .filter( Boolean );
+    }, [ tagIds ] );
 
-    // Debug modal state changes
-    useEffect( () => {
-        if ( isModalOpen ) {
-            console.log('WeGeniusActions: Modal opened with analysis:', selectedAnalysis);
-        }
-    }, [ isModalOpen, selectedAnalysis ] );
-
-    // Fetch Yoast SEO data for current post
-    const fetchYoastData = async () => {
+    // Memoized callback functions to prevent unnecessary re-renders
+    const fetchYoastDataCallback = useCallback( async () => {
         if ( !postId || !isYoastActive ) {
             return;
         }
@@ -174,63 +133,9 @@ const WeGeniusActionsSidebar = () => {
         } catch ( error ) {
             console.log( 'WeGeniusActions: Error fetching Yoast data:', error );
         }
-    };
+    }, [ postId, isYoastActive ] );
 
-    // Handle Yoast checkbox changes
-    const handleYoastDataChange = ( field, checked ) => {
-        setYoastData( prev => ( {
-            ...prev,
-            [ field ]: checked
-        } ) );
-    };
-
-    // Fetch detailed analysis results and suggestions using new wp_post_id based endpoint
-    const fetchAnalysisDetails = async ( wpPostId, analysisType = 'improve' ) => {
-        try {
-            // Fetch analysis results using new endpoint structure
-            const resultsUrl = API_ENDPOINTS.getAnalysisResultsByPostIdAndType(wpPostId, analysisType);
-            const headers = getApiHeaders();
-            const resultsResponse = await fetch(resultsUrl, {
-                method: 'GET',
-                headers
-            } );
-            
-            if ( resultsResponse.ok ) {
-                const resultsData = await resultsResponse.json();
-                const data = resultsData.success ? resultsData.data : resultsData;
-                
-                // Set analysis details from the new structure
-                setAnalysisDetails( {
-                    analysis: data.analysis,
-                    post: data.post,
-                    metrics: data.analysis?.metrics || {}
-                } );
-                
-                // Set suggestions from the new structure (already grouped by type)
-                if ( data.suggestions ) {
-                    // Flatten all suggestions into a single array for compatibility
-                    const allSuggestions = [];
-                    Object.keys( data.suggestions ).forEach( type => {
-                        if ( Array.isArray( data.suggestions[type] ) ) {
-                            data.suggestions[type].forEach( suggestion => {
-                                allSuggestions.push( {
-                                    ...suggestion,
-                                    suggestion_type: type
-                                } );
-                            } );
-                        }
-                    } );
-                    setSuggestions( allSuggestions );
-                }
-            }
-            
-        } catch ( error ) {
-            console.error( 'Error fetching analysis details:', error );
-        }
-    };
-
-    // Check scan status for current post
-    const checkScanStatus = async ( isInitialLoad = false ) => {
+    const checkScanStatusCallback = useCallback( async ( isInitialLoad = false ) => {
         if ( ! postId ) {
             return;
         }
@@ -293,9 +198,85 @@ const WeGeniusActionsSidebar = () => {
                 setIsCheckingStatus( false );
             }
         }
+    }, [ postId ] );
+
+    // Fetch Yoast data if plugin is active
+    useEffect( () => {
+        if ( isYoastActive && postId ) {
+            fetchYoastDataCallback();
+        }
+    }, [ fetchYoastDataCallback ] );
+
+    // Automatically check scan status when component mounts or postId changes
+    useEffect( () => {
+        if ( postId ) {
+            checkScanStatusCallback( true );
+        }
+    }, [ checkScanStatusCallback ] );
+
+    // Debug modal state changes
+    useEffect( () => {
+        if ( isModalOpen ) {
+            console.log('WeGeniusActions: Modal opened with analysis:', selectedAnalysis);
+        }
+    }, [ isModalOpen, selectedAnalysis ] );
+
+
+    // Handle Yoast checkbox changes
+    const handleYoastDataChange = useCallback( ( field, checked ) => {
+        setYoastData( prev => ( {
+            ...prev,
+            [ field ]: checked
+        } ) );
+    }, [] );
+
+    // Fetch detailed analysis results and suggestions using new wp_post_id based endpoint
+    const fetchAnalysisDetails = async ( wpPostId, analysisType = 'improve' ) => {
+        try {
+            // Fetch analysis results using new endpoint structure
+            const resultsUrl = API_ENDPOINTS.getAnalysisResultsByPostIdAndType(wpPostId, analysisType);
+            const headers = getApiHeaders();
+            const resultsResponse = await fetch(resultsUrl, {
+                method: 'GET',
+                headers
+            } );
+            
+            if ( resultsResponse.ok ) {
+                const resultsData = await resultsResponse.json();
+                const data = resultsData.success ? resultsData.data : resultsData;
+                
+                // Set analysis details from the new structure
+                setAnalysisDetails( {
+                    analysis: data.analysis,
+                    post: data.post,
+                    metrics: data.analysis?.metrics || {}
+                } );
+                
+                // Set suggestions from the new structure (already grouped by type)
+                if ( data.suggestions ) {
+                    // Flatten all suggestions into a single array for compatibility
+                    const allSuggestions = [];
+                    Object.keys( data.suggestions ).forEach( type => {
+                        if ( Array.isArray( data.suggestions[type] ) ) {
+                            data.suggestions[type].forEach( suggestion => {
+                                allSuggestions.push( {
+                                    ...suggestion,
+                                    suggestion_type: type
+                                } );
+                            } );
+                        }
+                    } );
+                    setSuggestions( allSuggestions );
+                }
+            }
+            
+        } catch ( error ) {
+            console.error( 'Error fetching analysis details:', error );
+        }
     };
 
-    const handleScan = async () => {
+
+    const handleScan = useCallback( async () => {
         if ( ! postId ) {
             return;
         }
@@ -352,7 +333,7 @@ const WeGeniusActionsSidebar = () => {
 
             // Check status after successful submission
             setTimeout( () => {
-                checkScanStatus();
+                checkScanStatusCallback();
             }, 1000 );
 
         } catch ( error ) {
@@ -363,15 +344,32 @@ const WeGeniusActionsSidebar = () => {
         } finally {
             setIsScanning( false );
         }
-    };
+    }, [ postId, postTitle, postContent, postPermalink, featuredImageUrl, postStatus, authorName, selectedOption, focusKeyphrase, categories, tags, excerpt, isYoastActive, yoastData, checkScanStatusCallback ] );
+
+    /**
+     * Handle content replacement when suggestion is applied
+     */
+    const handleContentReplacement = useCallback( ( newContent ) => {
+        console.log('WeGeniusActions: handleContentReplacement called');
+        console.log('WeGeniusActions: New content received:', newContent);
+        console.log('WeGeniusActions: editPost function available:', !!editPost);
+        
+        try {
+            editPost({ content: newContent });
+            console.log('WeGeniusActions: editPost called successfully');
+        } catch (error) {
+            console.error('WeGeniusActions: Error calling editPost:', error);
+        }
+    }, [ editPost ] );
 
     /**
      * Handle opening the analysis details modal
      */
-    const handleOpenDetails = () => {
+    const handleOpenDetails = useCallback( () => {
         console.log('WeGeniusActions: handleOpenDetails called');
         console.log('WeGeniusActions: scanStatus:', scanStatus);
         console.log('WeGeniusActions: scanStatus?.analysis:', scanStatus?.analysis);
+        console.log('WeGeniusActions: handleContentReplacement function available:', !!handleContentReplacement);
         
         if ( scanStatus?.analysis ) {
             console.log('WeGeniusActions: Setting selected analysis and opening modal');
@@ -395,16 +393,16 @@ const WeGeniusActionsSidebar = () => {
             setSelectedAnalysis( mockAnalysis );
             setIsModalOpen( true );
         }
-    };
+    }, [ scanStatus, postId, handleContentReplacement ] );
 
     /**
      * Handle closing the analysis details modal
      */
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback( () => {
         console.log('WeGeniusActions: handleCloseModal called');
         setIsModalOpen( false );
         setSelectedAnalysis( null );
-    };
+    }, [] );
 
     return (
         <>
@@ -491,7 +489,7 @@ const WeGeniusActionsSidebar = () => {
                 { postId && (
                     <Button 
                         variant="secondary" 
-                        onClick={ checkScanStatus }
+                        onClick={ checkScanStatusCallback }
                         disabled={ isCheckingStatus }
                         style={{ marginLeft: '0.5rem' }}
                     >
@@ -870,10 +868,7 @@ const WeGeniusActionsSidebar = () => {
             </PanelBody>
 
             <Button 
-            onClick={ () => {
-                console.log('WeGeniusActions: Details button clicked');
-                handleOpenDetails();
-            }}
+            onClick={ handleOpenDetails }
             variant="secondary"
         >
             { __( 'Details', 'wegenius' ) }
@@ -888,6 +883,7 @@ const WeGeniusActionsSidebar = () => {
             isOpen={ isModalOpen }
             onClose={ handleCloseModal }
             analysis={ selectedAnalysis }
+            onContentReplace={ handleContentReplacement }
         />
         </>
     );

@@ -87,7 +87,11 @@ export const buildApiUrl = (endpoint, params = {}) => {
     });
     
     // Add query parameters if any remain after path parameter replacement
-    const queryParams = Object.keys(params).filter(key => !url.includes(`{${key}}`));
+    // Only add as query params if they weren't used as path parameters
+    const queryParams = Object.keys(params).filter(key => {
+        const pathParamPattern = `{${key}}`;
+        return !endpoint.includes(pathParamPattern);
+    });
     
     if (queryParams.length > 0) {
         const queryString = queryParams

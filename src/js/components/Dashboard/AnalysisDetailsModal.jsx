@@ -1,6 +1,7 @@
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useCallback, useMemo, memo } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { Modal, Spinner, Button, Notice, TabPanel } from '@wordpress/components';
+import { useDispatch } from '@wordpress/data';
 import { API_ENDPOINTS, getApiHeaders } from '../../constants/api';
 
 /**
@@ -12,8 +13,9 @@ import { API_ENDPOINTS, getApiHeaders } from '../../constants/api';
  * @param {boolean} props.isOpen Whether the modal is open
  * @param {Function} props.onClose Close modal handler
  * @param {Object} props.analysis Analysis data object
+ * @param {Function} props.onContentReplace Handler for content replacement
  */
-export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
+const AnalysisDetailsModalComponent = ({ isOpen, onClose, analysis, onContentReplace }) => {
 	const [loading, setLoading] = useState(false);
 	const [analysisDetails, setAnalysisDetails] = useState(null);
 	const [suggestions, setSuggestions] = useState([]);
@@ -26,15 +28,16 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	useEffect(() => {
 		if (isOpen && analysis) {
 			console.log('AnalysisDetailsModal: Modal opened with analysis data:', analysis);
+			console.log('AnalysisDetailsModal: onContentReplace prop received:', !!onContentReplace);
 			fetchAnalysisDetails();
 		}
-	}, [isOpen, analysis]);
+	}, [isOpen, analysis, onContentReplace]);
 
 
 	/**
 	 * Fetch analysis details from external API
 	 */
-	const fetchAnalysisDetails = async () => {
+	const fetchAnalysisDetails = useCallback(async () => {
 		setLoading(true);
 		setError(null);
 
@@ -149,15 +152,16 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [analysis]);
 
 	/**
 	 * Handle apply suggestion
 	 */
-	const handleApplySuggestion = async (suggestion) => {
+	const handleApplySuggestion = useCallback(async (suggestion) => {
 		try {
 			setApplyingSuggestion(suggestion.id);
 			console.log('AnalysisDetailsModal: Applying suggestion:', suggestion);
+			console.log('AnalysisDetailsModal: onContentReplace function available:', !!onContentReplace);
 			
 			// Use direct external API call to apply suggestion
 			const wpPostId = analysis.wp_post_id || 0;
@@ -181,10 +185,37 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 			const result = await response.json();
 			console.log('AnalysisDetailsModal: Apply-suggestion API response:', result);
 			
+			// Extract updated content from the result and update the post
+			console.log('AnalysisDetailsModal: Checking for updated_content in result:', result);
+			console.log('AnalysisDetailsModal: result.updated_content exists:', !!result.updated_content);
+			console.log('AnalysisDetailsModal: result.data exists:', !!result.data);
+			console.log('AnalysisDetailsModal: result.data.updated_content exists:', !!(result.data && result.data.updated_content));
+			
+			// Try different possible locations for updated content
+			const updatedContent = result.updated_content || (result.data && result.data.updated_content) || (result.data && result.data.content);
+			console.log('AnalysisDetailsModal: Final updated content found:', !!updatedContent);
+			
+			if (updatedContent) {
+				console.log('AnalysisDetailsModal: Updated content preview:', updatedContent);
+				
+				// Use the passed content replacement handler
+				if (onContentReplace) {
+					console.log('AnalysisDetailsModal: Calling onContentReplace with updated content');
+					console.log('AnalysisDetailsModal: Content length:', updatedContent.length);
+					onContentReplace(updatedContent);
+					console.log('AnalysisDetailsModal: Content replacement called successfully');
+				} else {
+					console.error('AnalysisDetailsModal: onContentReplace function is not available!');
+				}
+			} else {
+				console.warn('AnalysisDetailsModal: No updated content found in API response');
+				console.log('AnalysisDetailsModal: Full result structure:', JSON.stringify(result, null, 2));
+			}
+			
 			if (result.success) {
-				alert(__('Suggestion applied successfully!', 'wegenius'));
-				// Refresh the analysis details to show updated state
-				fetchAnalysisDetails();
+				console.log('AnalysisDetailsModal: API call successful, closing modal');
+				// Close the modal to allow content replacement to work properly
+				onClose();
 			} else {
 				throw new Error(result.message || 'Failed to apply suggestion');
 			}
@@ -194,9 +225,30 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		} finally {
 			setApplyingSuggestion(null);
 		}
-	};
+	}, [analysis, onContentReplace, fetchAnalysisDetails]);
 
 
+	// Memoize expensive computations - ALWAYS call hooks at the top level
+	const memoizedSuggestions = useMemo(() => {
+		if (!suggestions || suggestions.length === 0) return [];
+		return suggestions.map((suggestion, index) => {
+			console.log('AnalysisDetailsModal: Rendering suggestion:', index, suggestion);
+			return suggestion;
+		});
+	}, [suggestions]);
+
+	// Memoize metric scores
+	const memoizedMetrics = useMemo(() => {
+		if (!analysisDetails) return [];
+		return [
+			{ label: __('Content Quality', 'wegenius'), score: analysisDetails.scores?.overall || 0, color: '#dc2626' },
+			{ label: __('SEO Optimization', 'wegenius'), score: analysisDetails.scores?.seo || 0, color: '#dc2626' },
+			{ label: __('Readability', 'wegenius'), score: analysisDetails.scores?.readability || 0, color: '#dc2626' },
+			{ label: __('Engagement', 'wegenius'), score: Math.max(0, (analysisDetails.scores?.overall || 0) - 5), color: '#dc2626' }
+		];
+	}, [analysisDetails]);
+
+	// Early return after all hooks
 	if (!isOpen) {
 		return null;
 	}
@@ -323,12 +375,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 						gap: '16px',
 						borderBottom: '1px solid #e0e0e0'
 					}}>
-						{[
-							{ label: __('Content Quality', 'wegenius'), score: analysisDetails.scores?.overall || 0, color: '#dc2626' },
-							{ label: __('SEO Optimization', 'wegenius'), score: analysisDetails.scores?.seo || 0, color: '#dc2626' },
-							{ label: __('Readability', 'wegenius'), score: analysisDetails.scores?.readability || 0, color: '#dc2626' },
-							{ label: __('Engagement', 'wegenius'), score: Math.max(0, (analysisDetails.scores?.overall || 0) - 5), color: '#dc2626' }
-						].map((metric, index) => (
+					{memoizedMetrics.map((metric, index) => (
 							<div key={index} style={{ 
 								backgroundColor: 'white',
 								border: '1px solid #e0e0e0',
@@ -410,10 +457,9 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 					)}
 
 					{/* AI Suggestions Content */}
-					{!loading && !error && suggestions && suggestions.length > 0 && (
+					{!loading && !error && memoizedSuggestions && memoizedSuggestions.length > 0 && (
 						<div>
-							{suggestions.map((suggestion, index) => {
-								console.log('AnalysisDetailsModal: Rendering suggestion:', index, suggestion);
+							{memoizedSuggestions.map((suggestion, index) => {
 								return (
 								<div 
 									key={suggestion.id || index} 
@@ -589,7 +635,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 					)}
 
 					{/* No Suggestions State */}
-					{!loading && !error && (!suggestions || suggestions.length === 0) && (
+					{!loading && !error && (!memoizedSuggestions || memoizedSuggestions.length === 0) && (
 						<Notice status="info" isDismissible={false}>
 							<p>{__('No suggestions available for this analysis.', 'wegenius')}</p>
 						</Notice>
@@ -600,3 +646,6 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		</Modal>
 	);
 };
+
+// Export memoized component to prevent unnecessary re-renders
+export const AnalysisDetailsModal = memo(AnalysisDetailsModalComponent);

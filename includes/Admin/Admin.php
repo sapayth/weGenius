@@ -263,6 +263,9 @@ class Admin {
 			// Get settings for API configuration
 			$settings = get_option( 'wegenius_settings', [] );
 
+			// Check if Yoast SEO plugin is active
+			$is_yoast_active = $this->is_yoast_seo_active();
+
 			// Localize script with admin data for API authentication
 			wp_localize_script(
 				'wegenius-editor',
@@ -273,6 +276,7 @@ class Admin {
 					'restUrl' => rest_url( 'wegenius/v1' ),
 					'apiKey'  => $settings['api']['apiKey'] ?? '',
 					'apiBaseUrl' => $settings['api']['apiEndpoint'] ?? 'https://wegenius.fahmidsroadmap.com/api/ai',
+					'isYoastActive' => $is_yoast_active,
 				]
 			);
 		}
@@ -337,5 +341,15 @@ class Admin {
 			<div id="wegenius-settings-root"></div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Check if Yoast SEO plugin is active.
+	 *
+	 * @return bool True if Yoast SEO is active, false otherwise.
+	 */
+	private function is_yoast_seo_active(): bool {
+		// Check if Yoast SEO plugin is active
+		return is_plugin_active( 'wordpress-seo/wp-seo.php' );
 	}
 }
