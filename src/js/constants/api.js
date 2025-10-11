@@ -169,8 +169,8 @@ export const API_ENDPOINTS = {
     getPostAnalyses: (postId) => 
         buildApiUrl(`${API_CONFIG.ENDPOINTS.POSTS.ANALYZE}/{postId}/analyses`, { postId }),
     
-    applySuggestion: (postId) => 
-        buildApiUrl(`${API_CONFIG.ENDPOINTS.POSTS.APPLY_SUGGESTION}/{postId}/apply-suggestion`, { postId }),
+    applySuggestion: (suggestionId) => 
+        buildApiUrl(`${API_CONFIG.ENDPOINTS.POSTS.APPLY_SUGGESTION}/apply-suggestion`, { suggestion_id: suggestionId }),
     
     getVersions: (postId) => 
         buildApiUrl(`${API_CONFIG.ENDPOINTS.POSTS.VERSIONS}/{postId}/versions`, { postId }),

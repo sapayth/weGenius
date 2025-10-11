@@ -18,6 +18,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	const [analysisDetails, setAnalysisDetails] = useState(null);
 	const [suggestions, setSuggestions] = useState([]);
 	const [error, setError] = useState(null);
+	const [applyingSuggestion, setApplyingSuggestion] = useState(null);
 
 	/**
 	 * Fetch analysis details and suggestions when modal opens
@@ -155,24 +156,29 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	 */
 	const handleApplySuggestion = async (suggestion) => {
 		try {
-			const postId = analysis?.wp_post_id || 0;
-			const url = API_ENDPOINTS.applySuggestion(postId);
+			setApplyingSuggestion(suggestion.id);
+			console.log('AnalysisDetailsModal: Applying suggestion:', suggestion);
+			
+			// Use direct external API call to apply suggestion
+			const url = API_ENDPOINTS.applySuggestion(suggestion.id);
 			const headers = getApiHeaders();
+			
+			console.log('AnalysisDetailsModal: Calling apply-suggestion API:', url);
 			
 			const response = await fetch(url, {
 				method: 'POST',
 				headers,
-				body: JSON.stringify({
-					suggestion_id: suggestion.id,
-					action: 'apply'
-				}),
+				body: JSON.stringify({}),
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to apply suggestion: ${response.status}`);
+				const errorText = await response.text();
+				console.error('AnalysisDetailsModal: API error response:', errorText);
+				throw new Error(`Failed to apply suggestion: ${response.status} - ${errorText}`);
 			}
 
 			const result = await response.json();
+			console.log('AnalysisDetailsModal: Apply-suggestion API response:', result);
 			
 			if (result.success) {
 				alert(__('Suggestion applied successfully!', 'wegenius'));
@@ -184,6 +190,8 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		} catch (err) {
 			console.error('Error applying suggestion:', err);
 			alert(__('Failed to apply suggestion. Please try again.', 'wegenius'));
+		} finally {
+			setApplyingSuggestion(null);
 		}
 	};
 
@@ -555,7 +563,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 											variant="primary"
 											size="small"
 											onClick={() => handleApplySuggestion(suggestion)}
-											disabled={loading}
+											disabled={loading || applyingSuggestion === suggestion.id}
 											style={{ 
 												backgroundColor: '#1a1a1a',
 												borderColor: '#1a1a1a',
@@ -563,7 +571,14 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 												fontWeight: '500'
 											}}
 										>
-											{__('Apply Suggestion', 'wegenius')}
+											{applyingSuggestion === suggestion.id ? (
+												<>
+													<Spinner style={{ marginRight: '8px' }} />
+													{__('Applying...', 'wegenius')}
+												</>
+											) : (
+												__('Apply Suggestion', 'wegenius')
+											)}
 										</Button>
 									</div>
 								</div>
