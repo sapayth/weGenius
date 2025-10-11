@@ -81,11 +81,30 @@ export const API_CONFIG = {
 export const buildApiUrl = (endpoint, params = {}) => {
     let url = `${API_CONFIG.BASE_URL}/${endpoint}`;
     
+    console.log('buildApiUrl: Input endpoint:', endpoint);
+    console.log('buildApiUrl: Input params:', params);
+    console.log('buildApiUrl: Initial URL:', url);
+    
     // Replace path parameters like {postId}, {analysisId}, etc.
     Object.keys(params).forEach(key => {
         url = url.replace(`{${key}}`, params[key]);
     });
     
+    console.log('buildApiUrl: After path parameter replacement:', url);
+    
+    // Add query parameters if any remain after path parameter replacement
+    const queryParams = Object.keys(params).filter(key => !url.includes(`{${key}}`));
+    console.log('buildApiUrl: Query params to add:', queryParams);
+    
+    if (queryParams.length > 0) {
+        const queryString = queryParams
+            .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+            .join('&');
+        url += `?${queryString}`;
+        console.log('buildApiUrl: Final URL with query params:', url);
+    }
+    
+    console.log('buildApiUrl: Final URL:', url);
     return url;
 };
 
