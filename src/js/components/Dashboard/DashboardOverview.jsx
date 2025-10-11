@@ -39,9 +39,7 @@ export const DashboardOverview = () => {
 		const url = API_ENDPOINTS.getAnalyses({ limit: 50, status: 'completed' });
 		const headers = getApiHeaders();
 		
-		console.log('Dashboard: API_ENDPOINTS.getAnalyses result:', url);
-		console.log('Dashboard: Headers:', headers);
-		console.log('Dashboard: Full request details:', { url, headers, method: 'GET' });
+		console.log('Dashboard: Fetching from external API:', url);
 			
 			const response = await fetch(url, {
 				method: 'GET',
@@ -53,21 +51,17 @@ export const DashboardOverview = () => {
 			}
 
 		const analysesResponse = await response.json();
-		console.log('Dashboard: Raw API response:', analysesResponse);
 		
 		// Extract analyses array from the response structure
 		const analyses = analysesResponse.data?.analyses || analysesResponse.analyses || [];
-		console.log('Dashboard: Processed analyses data:', analyses);
-		console.log('Dashboard: Number of analyses:', analyses.length);
+		console.log('Dashboard: Loaded', analyses.length, 'analyses from external API');
 			
 		// Calculate dashboard data from analyses
 		const overview = calculateOverviewStats(analyses);
 		const recentAnalyses = formatRecentAnalyses(analyses.slice(0, 10));
 		const thisWeek = calculateThisWeekData(analyses);
 		
-		console.log('Dashboard: Calculated overview:', overview);
-		console.log('Dashboard: Recent analyses (first 3):', recentAnalyses.slice(0, 3));
-		console.log('Dashboard: This week data:', thisWeek);
+		console.log('Dashboard: Overview stats:', overview);
 		
 		setDashboardData({
 			overview,
@@ -151,6 +145,7 @@ export const DashboardOverview = () => {
 				id: analysis.id,
 				title: post.title || __('Untitled', 'wegenius'),
 				postId: post.wp_post_id || 0,
+				wp_post_id: post.wp_post_id || 0, // Add this for AnalysisDetailsModal compatibility
 				permalink: post.permalink || '',
 				author: post.author_name || '',
 				lastAnalyzed: analysis.created_at || '',

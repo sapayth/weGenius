@@ -1,6 +1,6 @@
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { Modal, Spinner, Button, Notice } from '@wordpress/components';
+import { Modal, Spinner, Button, Notice, TabPanel } from '@wordpress/components';
 import { API_ENDPOINTS, getApiHeaders } from '../../constants/api';
 
 /**
@@ -24,6 +24,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 	 */
 	useEffect(() => {
 		if (isOpen && analysis) {
+			console.log('AnalysisDetailsModal: Modal opened with analysis data:', analysis);
 			fetchAnalysisDetails();
 		}
 	}, [isOpen, analysis]);
@@ -76,6 +77,8 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 			const resultsData = await response.json();
 			const data = resultsData.success ? resultsData.data : resultsData;
 			console.log('AnalysisDetailsModal: API response successful');
+			console.log('AnalysisDetailsModal: Full API response data:', resultsData);
+			console.log('AnalysisDetailsModal: Processed data:', data);
 
 			// Handle the response data - array of analyses, get the latest one
 			let analysisData = null;
@@ -87,6 +90,9 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 				analysisData = latestAnalysis.analysis;
 				suggestionsData = latestAnalysis.suggestions;
 				console.log('AnalysisDetailsModal: Using latest analysis from API');
+				console.log('AnalysisDetailsModal: Latest analysis data:', latestAnalysis);
+				console.log('AnalysisDetailsModal: Analysis data:', analysisData);
+				console.log('AnalysisDetailsModal: Suggestions data:', suggestionsData);
 			} else {
 				throw new Error(__('No completed analysis found for this post.', 'wegenius'));
 			}
@@ -95,7 +101,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 				throw new Error(__('No completed analysis found for this post.', 'wegenius'));
 			}
 			
-			setAnalysisDetails({
+			const analysisDetailsData = {
 				analysis: analysisData,
 				post: data.post,
 				metrics: analysisData?.metrics || {},
@@ -110,7 +116,10 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 					improvements: analysisData?.results?.improvements || [],
 					recommendations: analysisData?.results?.recommendations || []
 				}
-			});
+			};
+			
+			console.log('AnalysisDetailsModal: Setting analysis details:', analysisDetailsData);
+			setAnalysisDetails(analysisDetailsData);
 
 			// Handle suggestions from the analysis
 			if (suggestionsData) {
@@ -126,8 +135,10 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 						});
 					}
 				});
+				console.log('AnalysisDetailsModal: Processed suggestions:', allSuggestions);
 				setSuggestions(allSuggestions);
 			} else {
+				console.log('AnalysisDetailsModal: No suggestions data available');
 				setSuggestions([]);
 			}
 
@@ -181,297 +192,394 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 		return null;
 	}
 
+	console.log('AnalysisDetailsModal: Rendering modal with isOpen:', isOpen);
+	console.log('AnalysisDetailsModal: Current analysisDetails state:', analysisDetails);
+	console.log('AnalysisDetailsModal: Current suggestions state:', suggestions);
+	console.log('AnalysisDetailsModal: Current loading state:', loading);
+	console.log('AnalysisDetailsModal: Current error state:', error);
+	
 	return (
 		<Modal
 			title={__('Analysis Details', 'wegenius')}
 			onRequestClose={onClose}
 			className="wegen-analysis-modal"
 			shouldCloseOnClickOutside={true}
-			style={{ maxWidth: '900px' }}
+			size="large"
 		>
-			<div className="wegen-modal-content">
+			<div className="wegen-modal-content" style={{ 
+				padding: '0',
+				overflowY: 'auto'
+			}}>
 				
-				{/* Summary Section */}
-				{analysisDetails && (
-					<div style={{ 
-						marginBottom: '1.5rem', 
-						padding: '1rem', 
-						backgroundColor: '#f0f6fc', 
-						border: '1px solid #c5d9ed', 
-						borderRadius: '4px' 
-					}}>
-						<div style={{ 
-							display: 'grid', 
-							gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-							gap: '1rem', 
-							marginBottom: '1rem' 
-						}}>
-							<div style={{ textAlign: 'center' }}>
-								<div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#0073aa' }}>
-									{analysisDetails.scores?.overall || 'N/A'}
-								</div>
-								<div style={{ fontSize: '0.875rem', color: '#666' }}>
-									{__('Overall Score', 'wegenius')}
-								</div>
-							</div>
-							<div style={{ textAlign: 'center' }}>
-								<div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#00a32a' }}>
-									{analysisDetails.scores?.seo || 'N/A'}
-								</div>
-								<div style={{ fontSize: '0.875rem', color: '#666' }}>
-									{__('SEO Score', 'wegenius')}
-								</div>
-							</div>
-							<div style={{ textAlign: 'center' }}>
-								<div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#826eb4' }}>
-									{analysisDetails.scores?.readability || 'N/A'}
-								</div>
-								<div style={{ fontSize: '0.875rem', color: '#666' }}>
-									{__('Readability', 'wegenius')}
-								</div>
-							</div>
-						</div>
-						{analysisDetails.insights?.summary && (
-							<p style={{ fontSize: '0.875rem', margin: 0 }}>
-								<strong>{__('Summary:', 'wegenius')}</strong>{' '}
-								{analysisDetails.insights.summary}
-							</p>
-						)}
-					</div>
-				)}
-
-				{/* Loading State */}
-				{loading && (
+				{/* Header Section */}
+				<div style={{ 
+					padding: '24px 24px 0 24px',
+					borderBottom: '1px solid #e0e0e0'
+				}}>
 					<div style={{ 
 						display: 'flex', 
-						alignItems: 'center', 
-						justifyContent: 'center', 
-						padding: '2rem' 
+						justifyContent: 'space-between', 
+						alignItems: 'center',
+						marginBottom: '24px'
 					}}>
-						<Spinner />
-						<span style={{ marginLeft: '0.75rem', color: '#666' }}>
-							{__('Loading suggestions...', 'wegenius')}
-						</span>
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<div style={{ 
+								width: '24px', 
+								height: '24px', 
+								backgroundColor: '#0073aa',
+								borderRadius: '4px',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								color: 'white',
+								fontSize: '12px',
+								fontWeight: 'bold'
+							}}>
+								📊
+							</div>
+							<h2 style={{ 
+								fontSize: '24px', 
+								fontWeight: '600', 
+								margin: 0,
+								color: '#1a1a1a'
+							}}>
+								{__('Analysis Results', 'wegenius')}
+							</h2>
+						</div>
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<span style={{ 
+								fontSize: '14px', 
+								color: '#666',
+								fontWeight: '500'
+							}}>
+								{__('Completed:', 'wegenius')} {analysis?.completed_at ? new Date(analysis.completed_at).toLocaleDateString('en-US', {
+									month: 'short',
+									day: '2-digit',
+									year: 'numeric',
+									hour: '2-digit',
+									minute: '2-digit'
+								}) : 'N/A'}
+							</span>
+						</div>
+					</div>
+
+					{/* Overall Score Display */}
+					{analysisDetails && (
+						<div style={{ 
+							textAlign: 'center',
+							marginBottom: '32px'
+						}}>
+							<div style={{ 
+								fontSize: '48px', 
+								fontWeight: 'bold', 
+								color: '#dc2626',
+								marginBottom: '8px'
+							}}>
+								{analysisDetails.scores?.overall || 0}/100
+							</div>
+							<div style={{ 
+								fontSize: '16px', 
+								color: '#666',
+								fontWeight: '500',
+								marginBottom: '16px'
+							}}>
+								{__('Overall Content Score', 'wegenius')}
+							</div>
+							<div style={{ 
+								width: '100%', 
+								height: '8px', 
+								backgroundColor: '#e5e7eb', 
+								borderRadius: '4px',
+								position: 'relative',
+								overflow: 'hidden'
+							}}>
+								<div style={{ 
+									width: `${Math.min(analysisDetails.scores?.overall || 0, 100)}%`, 
+									height: '100%', 
+									backgroundColor: '#dc2626',
+									borderRadius: '4px',
+									transition: 'width 0.3s ease'
+								}} />
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Metric Scores */}
+				{analysisDetails && (
+					<div style={{ 
+						padding: '24px',
+						display: 'grid',
+						gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+						gap: '16px',
+						borderBottom: '1px solid #e0e0e0'
+					}}>
+						{[
+							{ label: __('Content Quality', 'wegenius'), score: analysisDetails.scores?.overall || 0, color: '#dc2626' },
+							{ label: __('SEO Optimization', 'wegenius'), score: analysisDetails.scores?.seo || 0, color: '#dc2626' },
+							{ label: __('Readability', 'wegenius'), score: analysisDetails.scores?.readability || 0, color: '#dc2626' },
+							{ label: __('Engagement', 'wegenius'), score: Math.max(0, (analysisDetails.scores?.overall || 0) - 5), color: '#dc2626' }
+						].map((metric, index) => (
+							<div key={index} style={{ 
+								backgroundColor: 'white',
+								border: '1px solid #e0e0e0',
+								borderRadius: '8px',
+								padding: '20px',
+								textAlign: 'center'
+							}}>
+								<div style={{ 
+									fontSize: '32px', 
+									fontWeight: 'bold', 
+									color: metric.color,
+									marginBottom: '8px'
+								}}>
+									{metric.score}
+								</div>
+								<div style={{ 
+									fontSize: '14px', 
+									color: '#666',
+									fontWeight: '500',
+									marginBottom: '12px'
+								}}>
+									{metric.label}
+								</div>
+								<div style={{ 
+									width: '100%', 
+									height: '6px', 
+									backgroundColor: '#f3f4f6', 
+									borderRadius: '3px',
+									overflow: 'hidden'
+								}}>
+									<div style={{ 
+										width: `${Math.min(metric.score, 100)}%`, 
+										height: '100%', 
+										backgroundColor: metric.color,
+										borderRadius: '3px',
+										transition: 'width 0.3s ease'
+									}} />
+								</div>
+							</div>
+						))}
 					</div>
 				)}
 
-				{/* Error State */}
-				{error && (
-					<Notice status="error" isDismissible={false}>
-						<strong>{__('Analysis Error', 'wegenius')}</strong>
-						<p>{error}</p>
-						{error.includes('No completed analysis') && (
-							<div style={{ marginTop: '0.75rem' }}>
-								<p><strong>{__('To get analysis results:', 'wegenius')}</strong></p>
-								<ol style={{ marginLeft: '1.5rem' }}>
-									<li>{__('Select an analysis type (Improve, Gaps, or Ideas)', 'wegenius')}</li>
-									<li>{__('Click the "Scan" button to start the analysis', 'wegenius')}</li>
-									<li>{__('Wait for the analysis to complete', 'wegenius')}</li>
-									<li>{__('Then click "Details" to view the results', 'wegenius')}</li>
-								</ol>
-							</div>
-						)}
-					</Notice>
-				)}
 
-				{/* Suggestions Content */}
-				{!loading && !error && suggestions && suggestions.length > 0 && (
-					<div style={{ marginBottom: '1.5rem' }}>
-						<h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>
-							{__('Improvement Suggestions', 'wegenius')}
-						</h3>
-						<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-							{suggestions.map((suggestion, index) => (
+				{/* Tab Content */}
+				<div style={{ padding: '24px' }}>
+					{/* Loading State */}
+					{loading && (
+						<div style={{ 
+							display: 'flex', 
+							alignItems: 'center', 
+							justifyContent: 'center', 
+							padding: '2rem' 
+						}}>
+							<Spinner />
+							<span style={{ marginLeft: '0.75rem', color: '#666' }}>
+								{__('Loading suggestions...', 'wegenius')}
+							</span>
+						</div>
+					)}
+
+					{/* Error State */}
+					{error && (
+						<Notice status="error" isDismissible={false}>
+							<strong>{__('Analysis Error', 'wegenius')}</strong>
+							<p>{error}</p>
+							{error.includes('No completed analysis') && (
+								<div style={{ marginTop: '0.75rem' }}>
+									<p><strong>{__('To get analysis results:', 'wegenius')}</strong></p>
+									<ol style={{ marginLeft: '1.5rem' }}>
+										<li>{__('Select an analysis type (Improve, Gaps, or Ideas)', 'wegenius')}</li>
+										<li>{__('Click the "Scan" button to start the analysis', 'wegenius')}</li>
+										<li>{__('Wait for the analysis to complete', 'wegenius')}</li>
+										<li>{__('Then click "Details" to view the results', 'wegenius')}</li>
+									</ol>
+								</div>
+							)}
+						</Notice>
+					)}
+
+					{/* AI Suggestions Content */}
+					{!loading && !error && suggestions && suggestions.length > 0 && (
+						<div>
+							{suggestions.map((suggestion, index) => {
+								console.log('AnalysisDetailsModal: Rendering suggestion:', index, suggestion);
+								return (
 								<div 
 									key={suggestion.id || index} 
 									style={{ 
-										border: '1px solid #ddd', 
-										borderRadius: '4px', 
-										padding: '1rem',
-										backgroundColor: '#fff'
+										border: '1px solid #e0e0e0', 
+										borderRadius: '8px', 
+										padding: '20px',
+										backgroundColor: '#fff',
+										marginBottom: '16px',
+										boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
 									}}
 								>
-									<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-										<div style={{ flex: 1 }}>
-											<div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-												{suggestion.priority && (
-													<span style={{ 
-														padding: '0.25rem 0.5rem', 
-														fontSize: '0.75rem', 
-														fontWeight: '500',
-														borderRadius: '999px',
-														backgroundColor: suggestion.priority === 'high' ? '#fee' : 
-															suggestion.priority === 'medium' ? '#fef3cd' : '#d1e7dd',
-														color: suggestion.priority === 'high' ? '#c00' : 
-															suggestion.priority === 'medium' ? '#856404' : '#0f5132'
-													}}>
-														{suggestion.priority}
-													</span>
-												)}
-												{suggestion.suggestion_type && (
-													<span style={{ 
-														padding: '0.25rem 0.5rem', 
-														fontSize: '0.75rem', 
-														fontWeight: '500',
-														borderRadius: '999px',
-														backgroundColor: suggestion.suggestion_type === 'seo' ? '#cfe2ff' :
-															suggestion.suggestion_type === 'readability' ? '#e0cffc' :
-															suggestion.suggestion_type === 'structure' ? '#ffd8b2' : '#e9ecef',
-														color: suggestion.suggestion_type === 'seo' ? '#084298' :
-															suggestion.suggestion_type === 'readability' ? '#59359a' :
-															suggestion.suggestion_type === 'structure' ? '#ca6510' : '#495057'
-													}}>
-														{suggestion.suggestion_type}
-													</span>
-												)}
+									{/* Suggestion Header */}
+									<div style={{ 
+										display: 'flex', 
+										justifyContent: 'space-between', 
+										alignItems: 'flex-start',
+										marginBottom: '16px'
+									}}>
+										<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+											<span style={{ 
+												padding: '4px 8px', 
+												fontSize: '12px', 
+												fontWeight: '500',
+												borderRadius: '12px',
+												backgroundColor: suggestion.type === 'seo' ? '#dbeafe' :
+													suggestion.type === 'readability' ? '#e0e7ff' :
+													suggestion.type === 'engagement' ? '#fef3c7' : '#f3f4f6',
+												color: suggestion.type === 'seo' ? '#1e40af' :
+													suggestion.type === 'readability' ? '#3730a3' :
+													suggestion.type === 'engagement' ? '#92400e' : '#374151'
+											}}>
+												{suggestion.type}
+											</span>
+											<span style={{ 
+												padding: '4px 8px', 
+												fontSize: '12px', 
+												fontWeight: '500',
+												borderRadius: '12px',
+												backgroundColor: '#f3f4f6',
+												color: '#374151'
+											}}>
+												overall
+											</span>
+											<span style={{ 
+												fontSize: '12px', 
+												color: '#666',
+												marginLeft: '8px'
+											}}>
+												{__('Position', 'wegenius')} • {__('Created', 'wegenius')} {analysis?.completed_at ? new Date(analysis.completed_at).toLocaleDateString('en-US', {
+													month: 'short',
+													day: '2-digit',
+													year: 'numeric',
+													hour: '2-digit',
+													minute: '2-digit'
+												}) : 'N/A'}
+											</span>
+										</div>
+										<span style={{ 
+											padding: '4px 8px', 
+											fontSize: '12px', 
+											fontWeight: '500',
+											borderRadius: '12px',
+											backgroundColor: '#f3f4f6',
+											color: '#666'
+										}}>
+											{__('pending', 'wegenius')}
+										</span>
+									</div>
+
+									{/* Suggestion Content */}
+									<div style={{ marginBottom: '16px' }}>
+										<h4 style={{ 
+											fontSize: '14px', 
+											fontWeight: '600', 
+											marginBottom: '8px',
+											color: '#1a1a1a'
+										}}>
+											{__('Suggestion:', 'wegenius')}
+										</h4>
+										{suggestion.suggested_content && Array.isArray(suggestion.suggested_content) && (
+											<div style={{ 
+												fontSize: '14px', 
+												lineHeight: '1.5',
+												color: '#374151'
+											}}>
+												{console.log('AnalysisDetailsModal: Suggestion suggested_content:', suggestion.suggested_content)}
+												{suggestion.suggested_content.map((item, index) => (
+													<div key={index} style={{ marginBottom: '4px' }}>
+														<span style={{ marginRight: '8px', fontWeight: '500' }}>{index + 1}.</span>
+														{item}
+													</div>
+												))}
 											</div>
-											<h4 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
-												{suggestion.title}
+										)}
+									</div>
+
+									{/* Explanation */}
+									{suggestion.explanation && (
+										<div style={{ marginBottom: '16px' }}>
+											<h4 style={{ 
+												fontSize: '14px', 
+												fontWeight: '600', 
+												marginBottom: '8px',
+												color: '#1a1a1a'
+											}}>
+												{__('Explanation:', 'wegenius')}
 											</h4>
-											{suggestion.description && (
-												<p style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem' }}>
-													{suggestion.description}
-												</p>
-											)}
-											{suggestion.content && (
-												<div style={{ 
-													fontSize: '0.875rem', 
-													padding: '0.75rem', 
-													backgroundColor: '#f8f9fa', 
-													borderRadius: '4px',
-													marginBottom: '0.5rem'
+											<p style={{ 
+												fontSize: '14px', 
+												color: '#374151',
+												margin: 0,
+												lineHeight: '1.5'
+											}}>
+												{console.log('AnalysisDetailsModal: Suggestion explanation:', suggestion.explanation)}
+												{suggestion.explanation}
+											</p>
+										</div>
+									)}
+
+									{/* Priority and Action */}
+									<div style={{ 
+										display: 'flex', 
+										justifyContent: 'space-between', 
+										alignItems: 'center'
+									}}>
+										{suggestion.priority && (
+											<div>
+												<h4 style={{ 
+													fontSize: '14px', 
+													fontWeight: '600', 
+													marginBottom: '4px',
+													color: '#1a1a1a'
 												}}>
-													{suggestion.content}
-												</div>
-											)}
-											{suggestion.impact_score && (
-												<p style={{ fontSize: '0.875rem', color: '#00a32a', fontWeight: '500' }}>
-													{__('Impact Score:', 'wegenius')} {suggestion.impact_score}
-												</p>
-											)}
-										</div>
-										<div style={{ marginLeft: '1rem' }}>
-											<Button
-												variant="primary"
-												size="small"
-												onClick={() => handleApplySuggestion(suggestion)}
-												disabled={loading}
-											>
-												{__('Apply', 'wegenius')}
-											</Button>
-										</div>
+													{__('Priority:', 'wegenius')}
+												</h4>
+												<span style={{ 
+													fontSize: '14px', 
+													color: suggestion.priority === 'high' ? '#dc2626' : 
+														suggestion.priority === 'medium' ? '#d97706' : '#059669',
+													fontWeight: '500'
+												}}>
+													{suggestion.priority}
+												</span>
+											</div>
+										)}
+										<Button
+											variant="primary"
+											size="small"
+											onClick={() => handleApplySuggestion(suggestion)}
+											disabled={loading}
+											style={{ 
+												backgroundColor: '#1a1a1a',
+												borderColor: '#1a1a1a',
+												color: 'white',
+												fontWeight: '500'
+											}}
+										>
+											{__('Apply Suggestion', 'wegenius')}
+										</Button>
 									</div>
 								</div>
-							))}
+								);
+							})}
 						</div>
-					</div>
-				)}
+					)}
 
-				{/* No Suggestions State */}
-				{!loading && !error && (!suggestions || suggestions.length === 0) && (
-					<Notice status="info" isDismissible={false}>
-						<p>{__('No suggestions available for this analysis.', 'wegenius')}</p>
-					</Notice>
-				)}
+					{/* No Suggestions State */}
+					{!loading && !error && (!suggestions || suggestions.length === 0) && (
+						<Notice status="info" isDismissible={false}>
+							<p>{__('No suggestions available for this analysis.', 'wegenius')}</p>
+						</Notice>
+					)}
 
-				{/* Insights Section */}
-				{analysisDetails?.insights && (
-					<div>
-						<h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>
-							{__('Analysis Insights', 'wegenius')}
-						</h3>
-						<div style={{ 
-							display: 'grid', 
-							gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-							gap: '1rem' 
-						}}>
-							{/* Strengths */}
-							{analysisDetails.insights.strengths && analysisDetails.insights.strengths.length > 0 && (
-								<div style={{ 
-									backgroundColor: '#d1e7dd', 
-									border: '1px solid #badbcc', 
-									borderRadius: '4px', 
-									padding: '1rem' 
-								}}>
-									<h4 style={{ fontWeight: '600', color: '#0f5132', marginBottom: '0.5rem' }}>
-										{__('Strengths', 'wegenius')}
-									</h4>
-									<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-										{analysisDetails.insights.strengths.map((strength, index) => (
-											<li key={index} style={{ 
-												display: 'flex', 
-												alignItems: 'flex-start', 
-												fontSize: '0.875rem',
-												color: '#0f5132',
-												marginBottom: '0.25rem'
-											}}>
-												<span style={{ marginRight: '0.5rem', color: '#198754' }}>✓</span>
-												{strength}
-											</li>
-										))}
-									</ul>
-								</div>
-							)}
-
-							{/* Improvements */}
-							{analysisDetails.insights.improvements && analysisDetails.insights.improvements.length > 0 && (
-								<div style={{ 
-									backgroundColor: '#fef3cd', 
-									border: '1px solid #ffeaa7', 
-									borderRadius: '4px', 
-									padding: '1rem' 
-								}}>
-									<h4 style={{ fontWeight: '600', color: '#856404', marginBottom: '0.5rem' }}>
-										{__('Areas for Improvement', 'wegenius')}
-									</h4>
-									<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-										{analysisDetails.insights.improvements.map((improvement, index) => (
-											<li key={index} style={{ 
-												display: 'flex', 
-												alignItems: 'flex-start', 
-												fontSize: '0.875rem',
-												color: '#856404',
-												marginBottom: '0.25rem'
-											}}>
-												<span style={{ marginRight: '0.5rem', color: '#ffc107' }}>⚠</span>
-												{improvement}
-											</li>
-										))}
-									</ul>
-								</div>
-							)}
-
-							{/* Recommendations */}
-							{analysisDetails.insights.recommendations && analysisDetails.insights.recommendations.length > 0 && (
-								<div style={{ 
-									backgroundColor: '#cfe2ff', 
-									border: '1px solid #b6d4fe', 
-									borderRadius: '4px', 
-									padding: '1rem' 
-								}}>
-									<h4 style={{ fontWeight: '600', color: '#084298', marginBottom: '0.5rem' }}>
-										{__('Recommendations', 'wegenius')}
-									</h4>
-									<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-										{analysisDetails.insights.recommendations.map((recommendation, index) => (
-											<li key={index} style={{ 
-												display: 'flex', 
-												alignItems: 'flex-start', 
-												fontSize: '0.875rem',
-												color: '#084298',
-												marginBottom: '0.25rem'
-											}}>
-												<span style={{ marginRight: '0.5rem' }}>💡</span>
-												{recommendation}
-											</li>
-										))}
-									</ul>
-								</div>
-							)}
-						</div>
-					</div>
-				)}
-
+				</div>
 			</div>
 		</Modal>
 	);

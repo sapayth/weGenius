@@ -127,8 +127,6 @@ export const RecentAnalysisTable = ({ analyses, loading }) => {
 	 * Handle row click to open modal
 	 */
 	const handleRowClick = (group) => {
-		console.log('RecentAnalysisTable: handleRowClick called with group:', group);
-		
 		// Create a combined analysis object with all analysis data from the group
 		const firstAnalysis = group.analyses[0];
 		const selectedAnalysisData = {
@@ -140,13 +138,20 @@ export const RecentAnalysisTable = ({ analyses, loading }) => {
 			allAnalyses: group.analyses,
 		};
 		
-		console.log('RecentAnalysisTable: Setting selected analysis:', selectedAnalysisData);
 		setSelectedAnalysis(selectedAnalysisData);
-		
-		console.log('RecentAnalysisTable: Setting modal open to true');
 		setIsModalOpen(true);
 		
-		console.log('RecentAnalysisTable: Modal state after setState:', { isModalOpen: true, selectedAnalysis: selectedAnalysisData });
+		// Debug: Check if modal appears in DOM
+		setTimeout(() => {
+			const modal = document.querySelector('.wegen-analysis-modal');
+			const modalOverlay = document.querySelector('.components-modal__screen-overlay');
+			console.log('RecentAnalysisTable: Modal in DOM:', !!modal);
+			console.log('RecentAnalysisTable: Modal overlay in DOM:', !!modalOverlay);
+			if (modal) {
+				console.log('RecentAnalysisTable: Modal display:', window.getComputedStyle(modal).display);
+				console.log('RecentAnalysisTable: Modal visibility:', window.getComputedStyle(modal).visibility);
+			}
+		}, 100);
 	};
 
 	/**
