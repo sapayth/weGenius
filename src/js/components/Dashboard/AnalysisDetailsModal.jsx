@@ -160,7 +160,8 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 			console.log('AnalysisDetailsModal: Applying suggestion:', suggestion);
 			
 			// Use direct external API call to apply suggestion
-			const url = API_ENDPOINTS.applySuggestion(suggestion.id);
+			const wpPostId = analysis.wp_post_id || 0;
+			const url = API_ENDPOINTS.applySuggestion(wpPostId);
 			const headers = getApiHeaders();
 			
 			console.log('AnalysisDetailsModal: Calling apply-suggestion API:', url);
@@ -168,7 +169,7 @@ export const AnalysisDetailsModal = ({ isOpen, onClose, analysis }) => {
 			const response = await fetch(url, {
 				method: 'POST',
 				headers,
-				body: JSON.stringify({}),
+				body: JSON.stringify({ suggestion_id: suggestion.id }),
 			});
 
 			if (!response.ok) {

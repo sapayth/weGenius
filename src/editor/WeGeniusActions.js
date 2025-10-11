@@ -31,6 +31,14 @@ const WeGeniusActionsSidebar = () => {
     const [ suggestions, setSuggestions ] = useState( null );
     const [ isModalOpen, setIsModalOpen ] = useState( false );
     const [ selectedAnalysis, setSelectedAnalysis ] = useState( null );
+    
+    // Yoast integration state
+    const [ isYoastActive, setIsYoastActive ] = useState( false );
+    const [ yoastData, setYoastData ] = useState( {
+        metaDescription: false,
+        readability: false,
+        schema: false
+    } );
 
     // Get current post data
     const { 
@@ -93,6 +101,37 @@ const WeGeniusActionsSidebar = () => {
         };
     }, [] ); // Remove postId dependency to avoid circular reference
 
+    // Check if Yoast plugin is active and fetch Yoast data
+    useEffect( () => {
+        const checkYoastPlugin = async () => {
+            try {
+                // Check if Yoast SEO plugin is active
+                const response = await apiFetch( {
+                    path: '/wp/v2/plugins',
+                    method: 'GET'
+                } );
+                
+                const yoastPlugin = response.find( plugin => 
+                    plugin.plugin === 'wordpress-seo/wp-seo.php' && plugin.status === 'active'
+                );
+                
+                setIsYoastActive( !!yoastPlugin );
+                
+                // If Yoast is active, fetch Yoast data for current post
+                if ( yoastPlugin && postId ) {
+                    await fetchYoastData();
+                }
+            } catch ( error ) {
+                console.log( 'WeGeniusActions: Yoast plugin check failed:', error );
+                setIsYoastActive( false );
+            }
+        };
+        
+        if ( postId ) {
+            checkYoastPlugin();
+        }
+    }, [ postId ] );
+
     // Automatically check scan status when component mounts or postId changes
     useEffect( () => {
         if ( postId ) {
@@ -106,6 +145,44 @@ const WeGeniusActionsSidebar = () => {
             console.log('WeGeniusActions: Modal opened with analysis:', selectedAnalysis);
         }
     }, [ isModalOpen, selectedAnalysis ] );
+
+    // Fetch Yoast SEO data for current post
+    const fetchYoastData = async () => {
+        if ( !postId || !isYoastActive ) {
+            return;
+        }
+
+        try {
+            // Fetch Yoast meta data for the current post
+            const response = await apiFetch( {
+                path: `/wp/v2/posts/${postId}`,
+                method: 'GET'
+            } );
+
+            // Extract Yoast meta fields
+            const metaDescription = response.yoast_head_json?.description || '';
+            const readabilityScore = response.yoast_head_json?.readability_score || 0;
+            const schemaData = response.yoast_head_json?.schema || {};
+
+            // Update Yoast data state with available data
+            setYoastData( {
+                metaDescription: !!metaDescription,
+                readability: readabilityScore > 0,
+                schema: Object.keys( schemaData ).length > 0
+            } );
+
+        } catch ( error ) {
+            console.log( 'WeGeniusActions: Error fetching Yoast data:', error );
+        }
+    };
+
+    // Handle Yoast checkbox changes
+    const handleYoastDataChange = ( field, checked ) => {
+        setYoastData( prev => ( {
+            ...prev,
+            [ field ]: checked
+        } ) );
+    };
 
     // Fetch detailed analysis results and suggestions using new wp_post_id based endpoint
     const fetchAnalysisDetails = async ( wpPostId, analysisType = 'improve' ) => {
@@ -243,7 +320,13 @@ const WeGeniusActionsSidebar = () => {
                     categories: categories || [],
                     tags: tags || [],
                     excerpt: excerpt || '',
-                }
+                },
+                // Include Yoast data if plugin is active
+                yoast_data: isYoastActive ? {
+                    include_meta_description: yoastData.metaDescription,
+                    include_readability: yoastData.readability,
+                    include_schema: yoastData.schema
+                } : null
             };
 
             // Send request to external WeGenius API
@@ -352,6 +435,42 @@ const WeGeniusActionsSidebar = () => {
                     __nextHasNoMarginBottom={ true }
                 />
             </div>
+
+            { isYoastActive && (
+                <div style={{ marginTop: '1.5rem' }}>
+                    <h4 style={{ 
+                        margin: '0 0 0.75rem 0', 
+                        fontSize: '0.9rem', 
+                        fontWeight: 'bold',
+                        color: '#1d2327'
+                    }}>
+                        { __( 'Yoast data to send', 'wegenius' ) }
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <CheckboxControl
+                            label={ __( 'Meta description', 'wegenius' ) }
+                            checked={ yoastData.metaDescription }
+                            onChange={ ( checked ) => handleYoastDataChange( 'metaDescription', checked ) }
+                            help={ __( 'Include Yoast meta description in analysis', 'wegenius' ) }
+                        />
+                        
+                        <CheckboxControl
+                            label={ __( 'Readability', 'wegenius' ) }
+                            checked={ yoastData.readability }
+                            onChange={ ( checked ) => handleYoastDataChange( 'readability', checked ) }
+                            help={ __( 'Include Yoast readability score in analysis', 'wegenius' ) }
+                        />
+                        
+                        <CheckboxControl
+                            label={ __( 'Schema', 'wegenius' ) }
+                            checked={ yoastData.schema }
+                            onChange={ ( checked ) => handleYoastDataChange( 'schema', checked ) }
+                            help={ __( 'Include Yoast schema markup in analysis', 'wegenius' ) }
+                        />
+                    </div>
+                </div>
+            ) }
             <div style={{ marginTop: '1.5rem' }}>
                 <Button 
                     variant="primary" 
